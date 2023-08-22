@@ -1,0 +1,17 @@
+[
+  {
+    "user": "chuks@tenner.com",
+    "date": "2023-08-19T00:21:02.786Z",
+    "amount": 10
+  },
+  {
+    "user": "obakam@accounting.com",
+    "date": "2023-08-19T13:17:57.633Z",
+    "amount": 10
+  },
+  {
+    "user": "ola@gmail.com",
+    "date": "2023-08-19T13:27:41.630Z",
+    "amount": 10
+  }
+]

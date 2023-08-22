@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <title>Knowledgebase Platform</title>
+    <style>
+        .notion-shadow {
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <section class="hero is-white is-medium">
+        <div class="hero-head">
+            <nav class="navbar">
+                <div class="container">
+                    <div class="navbar-brand">
+                        <a class="navbar-item" href="/">
+                            <span class="title is-4 has-text-weight-bold">Knowledgebase</span>
+                        </a>
+                        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
+                            <span aria-hidden="true"></span>
+                            <span aria-hidden="true"></span>
+                            <span aria-hidden="true"></span>
+                        </a>
+                    </div>
+                    <div id="navbarMenu" class="navbar-menu">
+                        <div class="navbar-end">
+                            <a class="navbar-item" href="/login">Login</a>
+                            <a class="navbar-item" href="/pricing">Pricing</a>
+                            <div class="navbar-item">
+                                <a class="button is-primary" href="/register">Start Free Trial</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Hero content -->
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <h1 class="title is-1">Empower Your Team with Knowledgebase</h1>
+                <h2 class="subtitle is-3">Centralize your company's knowledge, streamline onboarding, and foster collaboration.</h2>
+                <a href="/register" class="button is-primary is-large">Get Started for Free</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section">
+        <div class="container">
+            <div class="columns is-centered">
+                <!-- Feature 1 -->
+                <div class="column is-4">
+                    <div class="box notion-shadow">
+                        <h3 class="title is-4">Advanced Search</h3>
+                        <p>Quickly find the information you need with our powerful search feature.</p>
+                    </div>
+                </div>
+                <!-- Feature 2 -->
+                <div class="column is-4">
+                    <div class="box notion-shadow">
+                        <h3 class="title is-4">Dynamic URLs</h3>
+                        <p>Each company gets a unique URL, making it easy to access and share your knowledgebase.</p>
+                    </div>
+                </div>
+                <!-- Feature 3 -->
+                <div class="column is-4">
+                    <div class="box notion-shadow">
+                        <h3 class="title is-4">Subscription Plans</h3>
+                        <p>Flexible plans that grow with your team. Upgrade or downgrade anytime.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section">
+        <div class="container">
+            <h2 class="title is-2 has-text-centered">What Our Users Say</h2>
+            <div class="columns is-centered">
+                <div class="column is-5">
+                    <div class="box notion-shadow">
+                        <p>"Knowledgebase has transformed how we onboard new team members. Everything is now in one place!"</p>
+                        <p class="has-text-weight-bold mt-4">- Alex, Tech Company</p>
+                    </div>
+                </div>
+                <div class="column is-5">
+                    <div class="box notion-shadow">
+                        <p>"The search feature is a game-changer. We can find answers in seconds."</p>
+                        <p class="has-text-weight-bold mt-4">- Jamie, Marketing Agency</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="section">
+        <div class="container">
+            <h2 class="title is-2 has-text-centered">Choose Your Plan</h2>
+            <div class="columns is-centered">
+                <!-- Basic Plan -->
+                <div class="column is-4">
+                    <div class="box notion-shadow">
+                        <h3 class="title is-4">Basic Plan</h3>
+                        <p>For small teams and startups</p>
+                        <h4 class="subtitle is-5 has-text-primary">$10/month</h4>
+                        <p>Advance search features</p>
+                        <p>Unlimited articles</p>
+                        <a href="/register" class="button is-primary">Start Free Trial</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>
+                <strong>Knowledgebase</strong> by Your Company. The source code is licensed under MIT.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const burger = document.querySelector('.navbar-burger');
+            const menu = document.querySelector('.navbar-menu');
+    
+            burger.addEventListener('click', () => {
+                burger.classList.toggle('is-active');
+                menu.classList.toggle('is-active');
+            });
+        });
+    </script>
+</body>
+</html>
