@@ -310,26 +310,25 @@ router.post('/login', (req, res) => {
                         }
 
                         return `
-                    <div class="box mb-4">
-                        <h3 class="title is-4">${article.title}</h3>
-                        <p>${content}</p>
-                        <div class="buttons">
-                            ${
-                                seeMore
-                                    ? '<a href="#" class="button is-link">See More</a>'
-                                    : ''
-                            }
-                            <a href="/edit-article/${
-                                article.id
-                            }" class="button is-warning">Edit</a>
-                            <a href="/delete-article/${
-                                article.id
-                            }" class="button is-danger">Delete</a>
-                        </div>
-                    </div>
-                    `
-                    })
-                    .join('')
+                            <div class="box mb-4">
+                                <h3 class="title is-4">${article.title}</h3>
+                                <p>${content}</p>
+                                <div class="buttons">
+                                    ${
+                                        seeMore
+                                            ? '<a href="#" class="button is-link">See More</a>'
+                                            : ''
+                                    }
+                                    <a href="/edit-article/${
+                                        article.id
+                                    }" class="button is-warning">Edit</a>
+                                    <a href="/delete-article/${
+                                        article.id
+                                    }" class="button is-danger">Delete</a>
+                                </div>
+                            </div>
+                        `})
+                        .join('')
 
                 res.send(`
                     <!DOCTYPE html>
