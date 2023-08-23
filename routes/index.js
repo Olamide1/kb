@@ -1,43 +1,44 @@
-const express = require('express');
-const fs = require('fs');
-const bcrypt = require('bcrypt');
-const app = express();
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const router = express.Router();
-const session = require('express-session');
-const bodyParser = require('body-parser');
+const express = require('express')
+const fs = require('fs')
+const bcrypt = require('bcrypt')
+const app = express()
+const path = require('path')
+const { v4: uuidv4 } = require('uuid')
+const router = express.Router()
+const session = require('express-session')
+const bodyParser = require('body-parser')
 
-app.use(bodyParser.json()); // for parsing application/json
-app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+app.use(bodyParser.json()) // for parsing application/json
+app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
 
-const usersFilePath = path.join(__dirname, '..', 'data', 'users.json');
-const articlesFilePath = path.join(__dirname, '..', 'data', 'articles.json');
+const usersFilePath = path.join(__dirname, '..', 'data', 'users.json')
+const articlesFilePath = path.join(__dirname, '..', 'data', 'articles.json')
 
 // Load the JSON data using the paths
-const users = require(usersFilePath);
-const articles = require(articlesFilePath);
+const users = require(usersFilePath)
+const articles = require(articlesFilePath)
 
-app.use(session({
-    // ... other session options
-    secret: 'secret_login!@',
-    resave: true,
-    saveUninitialized: false,  // <-- Set this option explicitly
-    cookie: {
-        sameSite: 'none',
-        secure: true,
-        maxAge: 3600000 // 1 hour in milliseconds
-    }
-}));
-
+app.use(
+    session({
+        // ... other session options
+        secret: 'secret_login!@',
+        resave: true,
+        saveUninitialized: false, // <-- Set this option explicitly
+        cookie: {
+            sameSite: 'none',
+            secure: true,
+            maxAge: 3600000, // 1 hour in milliseconds
+        },
+    })
+)
 
 function isAuthenticated(req, res, next) {
     if (req.session && req.session.user) {
-        return next(); // User is authenticated, proceed to the next middleware or route handler
+        return next() // User is authenticated, proceed to the next middleware or route handler
     }
     // If not authenticated, store the original URL to redirect after login
-    req.session.originalUrl = req.originalUrl;
-    res.redirect('/login');
+    req.session.originalUrl = req.originalUrl
+    res.redirect('/login')
 }
 
 const colorOptions = [
@@ -45,38 +46,43 @@ const colorOptions = [
     { value: '#23d160', name: 'Green' },
     { value: '#ff3860', name: 'Pink' },
     { value: '#ffdd57', name: 'Yellow' },
-    { value: '#9d65c9', name: 'Purple' }
-];
+    { value: '#9d65c9', name: 'Purple' },
+]
 
-const saltRounds = 10;
+const saltRounds = 10
 
 // Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
+app.use(express.static(path.join(__dirname, 'public')))
 
 // Landing page route
 router.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'views', 'layout.html'));
-});
+    res.sendFile(path.join(__dirname, '..', 'views', 'layout.html'))
+})
 
 // GET route for the registration page
 router.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'views', 'register.html'));
-});
+    res.sendFile(path.join(__dirname, '..', 'views', 'register.html'))
+})
 
 // Define a route for the pricing page
 router.get('/pricing', (req, res) => {
-    res.sendFile(path.join(__dirname,'..', 'views', 'pricing.html')); // Change the path as needed
-});
-
+    res.sendFile(path.join(__dirname, '..', 'views', 'pricing.html')) // Change the path as needed
+})
 
 // POST route for registration
 router.post('/register', (req, res) => {
-    const { email, password, company } = req.body;
+    const { email, password, company } = req.body
 
     // Check if email or company already exist
-    const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'users.json'), 'utf8'));
-    const existingUser = users.find(user => user.email === email || user.company === company);
+    const users = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'users.json'),
+            'utf8'
+        )
+    )
+    const existingUser = users.find(
+        (user) => user.email === email || user.company === company
+    )
 
     if (existingUser) {
         return res.send(`
@@ -98,23 +104,26 @@ router.post('/register', (req, res) => {
                     <!-- ... End of existing HTML ... -->
                 </body>
             </html>
-        `);
+        `)
     }
 
     bcrypt.hash(password, saltRounds, (err, hashedPassword) => {
         if (err) {
-            return res.status(500).send('Error hashing password.');
+            return res.status(500).send('Error hashing password.')
         }
 
-        const newUser = { email, password: hashedPassword, company };
-        users.push(newUser);
+        const newUser = { email, password: hashedPassword, company }
+        users.push(newUser)
 
-        fs.writeFileSync(path.join(__dirname, '..', 'data', 'users.json'), JSON.stringify(users));
+        fs.writeFileSync(
+            path.join(__dirname, '..', 'data', 'users.json'),
+            JSON.stringify(users)
+        )
 
         // Include billing and trial information
-        const trialDays = 7; // Replace with your trial duration
-        const trialEndDate = new Date();
-        trialEndDate.setDate(trialEndDate.getDate() + trialDays);
+        const trialDays = 7 // Replace with your trial duration
+        const trialEndDate = new Date()
+        trialEndDate.setDate(trialEndDate.getDate() + trialDays)
 
         // Redirect with a success message and billing information
         res.send(`
@@ -138,28 +147,26 @@ router.post('/register', (req, res) => {
                     <!-- ... End of existing HTML ... -->
                 </body>
             </html>
-        `);
-    });
-});
-
-
-
-
-
+        `)
+    })
+})
 
 // GET route for the login page
 router.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'views', 'login.html'));
-});
+    res.sendFile(path.join(__dirname, '..', 'views', 'login.html'))
+})
 
 // POST route for login
 router.post('/login', (req, res) => {
-    const { email, password } = req.body;
+    const { email, password } = req.body
 
-    const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'users.json'), 'utf8'));
-    const user = users.find(u => u.email === email);
-    
-    
+    const users = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'users.json'),
+            'utf8'
+        )
+    )
+    const user = users.find((u) => u.email === email)
 
     if (!user) {
         return res.send(`
@@ -201,90 +208,128 @@ router.post('/login', (req, res) => {
                 </script>
             </body>
             </html>
-        `);
+        `)
     }
 
     bcrypt.compare(password, user.password, (err, result) => {
         if (err) {
-            return res.status(500).send('Error verifying password.');
+            return res.status(500).send('Error verifying password.')
         }
 
         if (result) {
-            req.session.user = user;
+            req.session.user = user
 
+            // Check if the user is on a paid plan
+            const billingsPath = path.join(
+                __dirname,
+                '..',
+                'data',
+                'billings.json'
+            )
+            const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
+            const isPaid = billings.some(
+                (billing) => billing.user === user.email
+            )
 
-    // Check if the user is on a paid plan
-    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json');
-    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'));
-    const isPaid = billings.some(billing => billing.user === user.email);
+            // Include billing and trial information
+            const trialDays = 7 // Replace with your trial duration
+            const trialEndDate = new Date()
+            trialEndDate.setDate(trialEndDate.getDate() + trialDays)
 
-    // Include billing and trial information
-    const trialDays = 7; // Replace with your trial duration
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + trialDays);
-
-     // Calculate next payment due date (30 days from the last payment)
-     const lastPaymentDate = isPaid ? new Date(billings[billings.length - 1].date) : null;
-     const nextPaymentDueDate = lastPaymentDate ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
-    // Include billing and trial information
-    const billingSection = `
-        <section class="section">
-            <div class="container">
-                <div class="billing-info">
-                    ${isPaid ? `
-                        <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
-                    ` : `
-                        <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
-                        <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
-                    `}
-                </div>
-            </div>
-        </section>
-    `;
-            req.session.save(err => {
+            // Calculate next payment due date (30 days from the last payment)
+            const lastPaymentDate = isPaid
+                ? new Date(billings[billings.length - 1].date)
+                : null
+            const nextPaymentDueDate = lastPaymentDate
+                ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+                : null
+            // Include billing and trial information
+            const billingSection = `
+                <section class="section">
+                    <div class="container">
+                        <div class="billing-info">
+                            ${
+                                isPaid
+                                    ? `
+                                <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
+                            `
+                                    : `
+                                <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
+                                <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
+                            `
+                            }
+                        </div>
+                    </div>
+                </section>
+            `
+            req.session.save((err) => {
                 if (err) {
-                    console.error("Error saving session:", err);
-                    return res.status(500).send('Internal Server Error');
+                    console.error('Error saving session:', err)
+                    return res.status(500).send('Internal Server Error')
                 }
 
-                const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-                const userArticles = articles.filter(article => article.email === user.email);
-                 // Include analytics
-      const totalArticles = userArticles.length;
-      let totalCentralViews = 0;
-      let totalArticleViews = 0;
-  
-      userArticles.forEach(article => {
-          totalCentralViews += article.centralViews || 0;
-          totalArticleViews += article.articleViews || 0;
-      });
+                const articles = JSON.parse(
+                    fs.readFileSync(
+                        path.join(__dirname, '..', 'data', 'articles.json'),
+                        'utf8'
+                    )
+                )
+                const userArticles = articles.filter(
+                    (article) => article.email === user.email
+                )
+                // Include analytics
+                const totalArticles = userArticles.length
+                let totalCentralViews = 0
+                let totalArticleViews = 0
+
+                userArticles.forEach((article) => {
+                    totalCentralViews += article.centralViews || 0
+                    totalArticleViews += article.articleViews || 0
+                })
                 // Read total page views from JSON file
-    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
-    const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
+                const pageViewsPath = path.join(
+                    __dirname,
+                    '..',
+                    'data',
+                    'page-views.json'
+                )
+                const pageViewsData = JSON.parse(
+                    fs.readFileSync(pageViewsPath, 'utf8')
+                )
 
-                let articlesHtml = userArticles.map(article => {
-                    let content = article.content;
-                    let seeMore = false;
+                let articlesHtml = userArticles
+                    .map((article) => {
+                        let content = article.content
+                        let seeMore = false
 
-                    if (content.split(' ').length > 500) {
-                        content = content.split(' ').slice(0, 100).join(' ') + '...';
-                        seeMore = true;
-                    }
+                        if (content.split(' ').length > 500) {
+                            content =
+                                content.split(' ').slice(0, 100).join(' ') +
+                                '...'
+                            seeMore = true
+                        }
 
-                    return `
+                        return `
                     <div class="box mb-4">
                         <h3 class="title is-4">${article.title}</h3>
                         <p>${content}</p>
                         <div class="buttons">
-                            ${seeMore ? '<a href="#" class="button is-link">See More</a>' : ''}
-                            <a href="/edit-article/${article.id}" class="button is-warning">Edit</a>
-                            <a href="/delete-article/${article.id}" class="button is-danger">Delete</a>
+                            ${
+                                seeMore
+                                    ? '<a href="#" class="button is-link">See More</a>'
+                                    : ''
+                            }
+                            <a href="/edit-article/${
+                                article.id
+                            }" class="button is-warning">Edit</a>
+                            <a href="/delete-article/${
+                                article.id
+                            }" class="button is-danger">Delete</a>
                         </div>
                     </div>
-                    `;
-                }).join('');
-
-
+                    `
+                    })
+                    .join('')
 
                 res.send(`
                     <!DOCTYPE html>
@@ -331,7 +376,9 @@ router.post('/login', (req, res) => {
                         <!-- Existing HTML -->
                         <section class="section">
                             <div class="container">
-                                <h1 class="title is-2 mb-6">Welcome, ${user.company}!</h1>
+                                <h1 class="title is-2 mb-6">Welcome, ${
+                                    user.company
+                                }!</h1>
                                 <div class="box mt-6 notion-inspired">
                                 <h3 class="title is-4">Analytics</h3>
                                 <div class="columns">
@@ -356,7 +403,10 @@ router.post('/login', (req, res) => {
                                     <a href="/create-article" class="button is-primary">Create New Article</a>
                                     <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>     
                                 </div>
-                                ${articlesHtml || '<p>You have no articles yet. Create one to get started!</p>'}
+                                ${
+                                    articlesHtml ||
+                                    '<p>You have no articles yet. Create one to get started!</p>'
+                                }
 
                                 <!-- Include billing and trial information -->
                                 <script>
@@ -387,8 +437,8 @@ router.post('/login', (req, res) => {
                         </script>
                     </body>
                     </html>
-                `);
-            });
+                `)
+            })
         } else {
             res.send(`
                 <!DOCTYPE html>
@@ -425,95 +475,112 @@ router.post('/login', (req, res) => {
                     </script>
                 </body>
                 </html>
-            `);
+            `)
         }
-    });
-});
-
-
-
+    })
+})
 
 router.get('/dashboard', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
-    const user = req.session.user;
-       // Check if the user is on a paid plan
-       const billingsPath = path.join(__dirname, '..', 'data', 'billings.json');
-       const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'));
-       const isPaid = billings.some(billing => billing.user === user.email);
-   
-       user.paid = isPaid;
+    const user = req.session.user
+    // Check if the user is on a paid plan
+    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
+    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
+    const isPaid = billings.some((billing) => billing.user === user.email)
 
-       
+    user.paid = isPaid
 
-    const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-    const userArticles = articles.filter(article => article.email === req.session.user.email);
+    const articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
+    const userArticles = articles.filter(
+        (article) => article.email === req.session.user.email
+    )
 
-      // Include analytics
-      const totalArticles = userArticles.length;
-      let totalCentralViews = 0;
-      let totalArticleViews = 0;
-  
-      userArticles.forEach(article => {
-          totalCentralViews += article.centralViews || 0;
-          totalArticleViews += article.articleViews || 0;
-      });
-  
-       // Read total page views from JSON file
-    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
-    const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
+    // Include analytics
+    const totalArticles = userArticles.length
+    let totalCentralViews = 0
+    let totalArticleViews = 0
 
+    userArticles.forEach((article) => {
+        totalCentralViews += article.centralViews || 0
+        totalArticleViews += article.articleViews || 0
+    })
 
-    let articlesHtml = userArticles.map(article => {
-        let content = article.content;
-        let seeMore = false;
+    // Read total page views from JSON file
+    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
+    const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'))
 
-        // Check if the article content is more than 500 words
-        if (content.split(' ').length > 500) {
-            content = content.split(' ').slice(0, 100).join(' ') + '...';
-            seeMore = true;
-        }
+    let articlesHtml = userArticles
+        .map((article) => {
+            let content = article.content
+            let seeMore = false
 
-        return `
+            // Check if the article content is more than 500 words
+            if (content.split(' ').length > 500) {
+                content = content.split(' ').slice(0, 100).join(' ') + '...'
+                seeMore = true
+            }
+
+            return `
         <div class="box mb-4">
             <h3 class="title is-4">${article.title}</h3>
             <p>${content}</p>
             <div class="buttons">
-                ${seeMore ? '<a href="#" class="button is-link">See More</a>' : ''}
-                <a href="/edit-article/${article.id}" class="button is-warning">Edit</a>
-                <a href="/delete-article/${article.id}" class="button is-danger">Delete</a>
+                ${
+                    seeMore
+                        ? '<a href="#" class="button is-link">See More</a>'
+                        : ''
+                }
+                <a href="/edit-article/${
+                    article.id
+                }" class="button is-warning">Edit</a>
+                <a href="/delete-article/${
+                    article.id
+                }" class="button is-danger">Delete</a>
             </div>
         </div>
-        `;
-    }).join('');
+        `
+        })
+        .join('')
 
     // Include billing and trial information
-    const trialDays = 7; // Replace with your trial duration
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + trialDays);
+    const trialDays = 7 // Replace with your trial duration
+    const trialEndDate = new Date()
+    trialEndDate.setDate(trialEndDate.getDate() + trialDays)
 
-     // Calculate next payment due date (30 days from the last payment)
-     const lastPaymentDate = isPaid ? new Date(billings[billings.length - 1].date) : null;
-     const nextPaymentDueDate = lastPaymentDate ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
-     // Include billing and trial information
-     const billingSection = `
+    // Calculate next payment due date (30 days from the last payment)
+    const lastPaymentDate = isPaid
+        ? new Date(billings[billings.length - 1].date)
+        : null
+    const nextPaymentDueDate = lastPaymentDate
+        ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null
+    // Include billing and trial information
+    const billingSection = `
      <section class="section">
          <div class="container">
              <div class="billing-info">
-                 ${isPaid ? `
+                 ${
+                     isPaid
+                         ? `
                      <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
-                 ` : `
+                 `
+                         : `
                      <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
                      <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
-                 `}
+                 `
+                 }
              </div>
          </div>
      </section>
- `;
-
- 
+ `
 
     res.send(`
     <!DOCTYPE html>
@@ -599,7 +666,9 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         <!-- Main Content -->
         <section class="section">
             <div class="container">
-                <h1 class="title is-2 mb-6">Welcome, ${req.session.user.company}!</h1>
+                <h1 class="title is-2 mb-6">Welcome, ${
+                    req.session.user.company
+                }!</h1>
 
                 <div class="box mt-6 notion-inspired">
                 <h3 class="title is-4">Analytics</h3>
@@ -625,7 +694,10 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
                     <a href="/create-article" class="button is-primary">Create New Article</a>
                     <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>
                 </div>
-                ${articlesHtml || '<p>You have no articles yet. Create one to get started!</p>'}
+                ${
+                    articlesHtml ||
+                    '<p>You have no articles yet. Create one to get started!</p>'
+                }
             </div>
         </section>
         <!-- End of Main Content -->
@@ -675,24 +747,27 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         </script>
     </body>
     </html>
-    `);
-});
-
-
+    `)
+})
 
 // edit and delete
 router.get('/delete-article/:id', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
-    const articleId = req.params.id;
-    const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-    const article = articles.find(article => article.id === articleId);
+    const articleId = req.params.id
+    const articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
+    const article = articles.find((article) => article.id === articleId)
 
     if (!article) {
-        return res.redirect('/dashboard'); // Redirect if the article is not found
+        return res.redirect('/dashboard') // Redirect if the article is not found
     }
 
     res.send(`
@@ -712,37 +787,49 @@ router.get('/delete-article/:id', isAuthenticated, (req, res) => {
             </section>
         </body>
     </html>
-    `);
-});
+    `)
+})
 
 router.get('/confirm-delete/:id', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
-    const articleId = req.params.id;
-    let articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
+    const articleId = req.params.id
+    let articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
 
-    articles = articles.filter(article => article.id !== articleId);
+    articles = articles.filter((article) => article.id !== articleId)
 
-    fs.writeFileSync(path.join(__dirname, '..', 'data', 'articles.json'), JSON.stringify(articles, null, 4));
+    fs.writeFileSync(
+        path.join(__dirname, '..', 'data', 'articles.json'),
+        JSON.stringify(articles, null, 4)
+    )
 
-    res.redirect('/dashboard');
-});
-
+    res.redirect('/dashboard')
+})
 
 //edit articles
 router.get('/edit-article/:id', isAuthenticated, (req, res) => {
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
-    const articleId = req.params.id;
-    const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-    const article = articles.find(article => article.id === articleId);
+    const articleId = req.params.id
+    const articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
+    const article = articles.find((article) => article.id === articleId)
 
     if (!article) {
-        return res.redirect('/dashboard'); // Redirect if the article is not found
+        return res.redirect('/dashboard') // Redirect if the article is not found
     }
 
     res.send(`
@@ -788,81 +875,95 @@ router.get('/edit-article/:id', isAuthenticated, (req, res) => {
             </section>
         </body>
     </html>
-    `);
-});
+    `)
+})
 
 //update article
 
 router.post('/update-article/:id', isAuthenticated, (req, res) => {
     if (!req.session.user) {
-        req.session.originalUrl = req.originalUrl; // Store the original URL to redirect after login
-        return res.redirect('/login');
+        req.session.originalUrl = req.originalUrl // Store the original URL to redirect after login
+        return res.redirect('/login')
     }
 
-    const articleId = req.params.id;
-    let articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-    const articleIndex = articles.findIndex(article => article.id === articleId);
+    const articleId = req.params.id
+    let articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
+    const articleIndex = articles.findIndex(
+        (article) => article.id === articleId
+    )
 
     if (articleIndex === -1) {
-        return res.redirect('/dashboard'); // Redirect if the article is not found
+        return res.redirect('/dashboard') // Redirect if the article is not found
     }
 
     // Update the article's title and content
-    articles[articleIndex].title = req.body.title;
-    articles[articleIndex].content = req.body.content;
+    articles[articleIndex].title = req.body.title
+    articles[articleIndex].content = req.body.content
 
     // Save the updated articles data
-    fs.writeFileSync(path.join(__dirname, '..', 'data', 'articles.json'), JSON.stringify(articles, null, 4));
+    fs.writeFileSync(
+        path.join(__dirname, '..', 'data', 'articles.json'),
+        JSON.stringify(articles, null, 4)
+    )
 
     // Explicitly save the session
-    req.session.save(err => {
+    req.session.save((err) => {
         if (err) {
-            console.error("Error saving session:", err);
-            return res.redirect('/dashboard?error=true');
+            console.error('Error saving session:', err)
+            return res.redirect('/dashboard?error=true')
         }
         // Redirect back to the dashboard with a success message
-        req.session.message = 'Article updated successfully!';
-        res.redirect('/dashboard');
-    });
-});
-
-
+        req.session.message = 'Article updated successfully!'
+        res.redirect('/dashboard')
+    })
+})
 
 //endpoint
 router.post('/create-article', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
-    const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
+    const articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
 
     // Create a new article with a unique ID
     const newArticle = {
-        id: uuidv4(),  // Generate a unique ID for the article
+        id: uuidv4(), // Generate a unique ID for the article
         title: req.body.title,
         content: req.body.content,
-        email: req.session.user.email
-    };
+        email: req.session.user.email,
+    }
 
     // Add the new article to the list of articles
-    articles.push(newArticle);
+    articles.push(newArticle)
 
     // Save the updated articles data
-    fs.writeFileSync(path.join(__dirname, '..', 'data', 'articles.json'), JSON.stringify(articles, null, 4));
+    fs.writeFileSync(
+        path.join(__dirname, '..', 'data', 'articles.json'),
+        JSON.stringify(articles, null, 4)
+    )
 
     // Redirect back to the dashboard with a success message
-    req.session.message = 'Article created successfully!';
-    res.redirect('/dashboard');
-});
-
-
+    req.session.message = 'Article created successfully!'
+    res.redirect('/dashboard')
+})
 
 // display
 router.get('/create-article', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
     res.send(`
@@ -920,19 +1021,20 @@ router.get('/create-article', isAuthenticated, (req, res) => {
         </section>
     </body>
     </html>
-    `);
-});
-
+    `)
+})
 
 // Share knowledgebase page
 
 router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
     // Generate a unique link for the user's knowledgebase using localhost and company name
-    const uniqueLink = `http://localhost:3000/knowledgebase/${encodeURIComponent(req.session.user.company)}`;
+    const uniqueLink = `http://localhost:3000/knowledgebase/${encodeURIComponent(
+        req.session.user.company
+    )}`
 
     res.send(`
     <html>
@@ -1004,69 +1106,88 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
         </body>
         <script src="https://kit.fontawesome.com/a076d05399.js"></script>
     </html>
-    `);
-});
-
-
-
+    `)
+})
 
 router.post('/share-knowledgebase', (req, res) => {
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
     // Here, you can add logic to handle the sharing action, such as sending an email or saving to a database.
 
     // For now, we'll just redirect back to the dashboard with a message.
-    req.session.message = 'Knowledgebase link copied successfully! Share it with your team.';
-    res.redirect('/dashboard');
-});
-
+    req.session.message =
+        'Knowledgebase link copied successfully! Share it with your team.'
+    res.redirect('/dashboard')
+})
 
 // Knowledgebase page
 router.get('/knowledgebase/:companyName', (req, res) => {
-    const companyName = req.params.companyName;
+    const companyName = req.params.companyName
 
-   // Read total page views from JSON file
-   const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
-   let pageViewsData = {};
+    // Read total page views from JSON file
+    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
+    let pageViewsData = {}
 
-   try {
-       pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
-   } catch (error) {
-       // If the file doesn't exist or is invalid, create a new data structure
-       pageViewsData.totalPageViews = 0;
-   }
-
-   // Increment page views counter
-   pageViewsData.totalPageViews++;
-
-   // Write updated total page views back to JSON file
-   fs.writeFileSync(pageViewsPath, JSON.stringify(pageViewsData, null, 2), 'utf8');
-
-
-    const searchQuery = req.query.search || "";
-
-    const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-    const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'users.json'), 'utf8'));
-
-    const user = users.find(user => user.company === companyName);
-
-    let userArticles = articles.filter(article => article.email === user.email);
-    const totalArticles = userArticles.length;
-    let totalArticleViews = 0;
-
-    userArticles.forEach(article => {
-        totalArticleViews += article.articleViews || 0;
-    });
-
-    if (searchQuery) {
-        userArticles = userArticles.filter(article => article.title.includes(searchQuery) || article.content.includes(searchQuery));
+    try {
+        pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'))
+    } catch (error) {
+        // If the file doesn't exist or is invalid, create a new data structure
+        pageViewsData.totalPageViews = 0
     }
 
-    let articlesHtml = userArticles.map(article => {
-        let snippet = article.content.split(' ').slice(0, 6).join(' ') + '...';
-        return `
+    // Increment page views counter
+    pageViewsData.totalPageViews++
+
+    // Write updated total page views back to JSON file
+    fs.writeFileSync(
+        pageViewsPath,
+        JSON.stringify(pageViewsData, null, 2),
+        'utf8'
+    )
+
+    const searchQuery = req.query.search || ''
+
+    const articles = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'articles.json'),
+            'utf8'
+        )
+    )
+    const users = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, '..', 'data', 'users.json'),
+            'utf8'
+        )
+    )
+
+    const user = users.find((user) => user.company === companyName)
+
+    let userArticles = articles.filter(
+        (article) => article.email === user.email
+    )
+    const totalArticles = userArticles.length
+    let totalArticleViews = 0
+
+    userArticles.forEach((article) => {
+        totalArticleViews += article.articleViews || 0
+    })
+
+    if (searchQuery) {
+        userArticles = userArticles.filter(
+            (article) =>
+                article.title.includes(searchQuery) ||
+                article.content.includes(searchQuery)
+        )
+    }
+
+    let articlesHtml =
+        userArticles
+            .map((article) => {
+                let snippet =
+                    article.content.split(' ').slice(0, 6).join(' ') + '...'
+                return `
             <div class="card">
                 <header class="card-header">
                     <p class="card-header-title">${article.title}</p>
@@ -1078,8 +1199,10 @@ router.get('/knowledgebase/:companyName', (req, res) => {
                     <a href="/article/${article.id}" class="card-footer-item">Read More</a>
                 </footer>
             </div>
-        `;
-    }).join('') || '<p class="subtitle has-text-grey">No articles available.</p>';
+        `
+            })
+            .join('') ||
+        '<p class="subtitle has-text-grey">No articles available.</p>'
 
     res.send(`
     <!DOCTYPE html>
@@ -1165,45 +1288,40 @@ router.get('/knowledgebase/:companyName', (req, res) => {
         <!-- Other scripts -->
     </body>
     </html>
-    `);
-});
-
-
-
-
-
-
-
-
-
-
+    `)
+})
 
 // individual articles
 router.get('/article/:articleId', (req, res) => {
-    const articleId = req.params.articleId;
+    const articleId = req.params.articleId
 
-    const articlesPath = path.join(__dirname, '..', 'data', 'articles.json');
-    const usersPath = path.join(__dirname, '..', 'data', 'users.json');
+    const articlesPath = path.join(__dirname, '..', 'data', 'articles.json')
+    const usersPath = path.join(__dirname, '..', 'data', 'users.json')
 
-    const articles = JSON.parse(fs.readFileSync(articlesPath, 'utf8'));
-    const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+    const articles = JSON.parse(fs.readFileSync(articlesPath, 'utf8'))
+    const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'))
 
-    const article = articles.find(a => a.id === articleId);
+    const article = articles.find((a) => a.id === articleId)
 
     if (!article) {
-        return res.status(404).send('Article not found');
+        return res.status(404).send('Article not found')
     }
 
-    const user = users.find(u => u.email === article.email);
-    const companyName = user ? user.company : 'Default Company';
-     // Update the article views and central views
-     article.articleViews = (article.articleViews || 0) + 1;
-     article.centralViews = (article.centralViews || 0) + 1;
- 
-     // Save the updated articles back to the file
-     const updatedArticles = articles.map(a => (a.id === articleId ? article : a));
-     fs.writeFileSync(articlesPath, JSON.stringify(updatedArticles, null, 2), 'utf8');
- 
+    const user = users.find((u) => u.email === article.email)
+    const companyName = user ? user.company : 'Default Company'
+    // Update the article views and central views
+    article.articleViews = (article.articleViews || 0) + 1
+    article.centralViews = (article.centralViews || 0) + 1
+
+    // Save the updated articles back to the file
+    const updatedArticles = articles.map((a) =>
+        a.id === articleId ? article : a
+    )
+    fs.writeFileSync(
+        articlesPath,
+        JSON.stringify(updatedArticles, null, 2),
+        'utf8'
+    )
 
     const pageContent = `
     <html>
@@ -1245,37 +1363,41 @@ router.get('/article/:articleId', (req, res) => {
                     <h1 class="title is-2 mb-6">${article.title}</h1>
                     <h2 class="subtitle is-5 mb-3">Article owned by: ${companyName}</h2>
                     <p>${article.content}</p>
-                    <a href="/knowledgebase/${encodeURIComponent(companyName)}" class="button mt-4">Back to Knowledgebase</a>
+                    <a href="/knowledgebase/${encodeURIComponent(
+                        companyName
+                    )}" class="button mt-4">Back to Knowledgebase</a>
                 </div>
             </section>
             <script src="https://kit.fontawesome.com/a076d05399.js"></script>
         </body>
     </html>
-    `;
+    `
 
-    res.send(pageContent);
-});
-
-
-
-
+    res.send(pageContent)
+})
 
 //settings function
 router.get('/settings', isAuthenticated, (req, res) => {
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
-    const userHeaderColor = req.session.user.headerColor || '#3273dc';
+    const userHeaderColor = req.session.user.headerColor || '#3273dc'
 
-    let successMessage = '';
+    let successMessage = ''
     if (req.query.success) {
-        successMessage = '<div class="notification is-success">Settings updated successfully!</div>';
+        successMessage =
+            '<div class="notification is-success">Settings updated successfully!</div>'
     }
 
     const colorSelectOptions = colorOptions
-        .map(option => `<option value="${option.value}"${option.value === userHeaderColor ? ' selected' : ''}>${option.name}</option>`)
-        .join('');
+        .map(
+            (option) =>
+                `<option value="${option.value}"${
+                    option.value === userHeaderColor ? ' selected' : ''
+                }>${option.name}</option>`
+        )
+        .join('')
 
     const pageContent = `
         <html>
@@ -1328,19 +1450,25 @@ router.get('/settings', isAuthenticated, (req, res) => {
                             <div class="field">
                                 <label class="label">Email</label>
                                 <div class="control">
-                                    <input class="input" type="email" name="email" value="${req.session.user.email}">
+                                    <input class="input" type="email" name="email" value="${
+                                        req.session.user.email
+                                    }">
                                 </div>
                             </div>
                             <div class="field">
                                 <label class="label">Employee Role</label>
                                 <div class="control">
-                                    <input class="input" type="text" name="role" placeholder="e.g., Software Developer" value="${req.session.user.role || ''}">
+                                    <input class="input" type="text" name="role" placeholder="e.g., Software Developer" value="${
+                                        req.session.user.role || ''
+                                    }">
                                 </div>
                             </div>
                             <div class="field">
                                 <label class="label">Country</label>
                                 <div class="control">
-                                    <input class="input" type="text" name="country" placeholder="e.g., United States" value="${req.session.user.country || ''}">
+                                    <input class="input" type="text" name="country" placeholder="e.g., United States" value="${
+                                        req.session.user.country || ''
+                                    }">
                                 </div>
                             </div>
                             <div class="field">
@@ -1367,62 +1495,64 @@ router.get('/settings', isAuthenticated, (req, res) => {
             </body>
             <script src="https://kit.fontawesome.com/a076d05399.js"></script>
         </html>
-    `;
+    `
 
-    res.send(pageContent);
-});
-
-
-
-
-
-
-
+    res.send(pageContent)
+})
 
 router.post('/update-settings', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
     try {
         // Get the new settings from the form submission
-        const { email, role, country, headerColor } = req.body;
+        const { email, role, country, headerColor } = req.body
 
         // Load the users data
-        const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'users.json'), 'utf8'));
+        const users = JSON.parse(
+            fs.readFileSync(
+                path.join(__dirname, '..', 'data', 'users.json'),
+                'utf8'
+            )
+        )
 
         // Find the current user and update their settings
-        const userIndex = users.findIndex(user => user.email === req.session.user.email);
+        const userIndex = users.findIndex(
+            (user) => user.email === req.session.user.email
+        )
         if (userIndex !== -1) {
-            if (email) users[userIndex].email = email;
-            if (role) users[userIndex].role = role;
-            if (country) users[userIndex].country = country;
-            if (headerColor) users[userIndex].headerColor = headerColor;
+            if (email) users[userIndex].email = email
+            if (role) users[userIndex].role = role
+            if (country) users[userIndex].country = country
+            if (headerColor) users[userIndex].headerColor = headerColor
 
             // Save the updated users data
-            fs.writeFileSync(path.join(__dirname, '..', 'data', 'users.json'), JSON.stringify(users, null, 4));
+            fs.writeFileSync(
+                path.join(__dirname, '..', 'data', 'users.json'),
+                JSON.stringify(users, null, 4)
+            )
 
             // Update the session data
-            req.session.user = users[userIndex];
+            req.session.user = users[userIndex]
 
             // Redirect back to the settings page with a success message
-            res.redirect('/settings?success=true');
+            res.redirect('/settings?success=true')
         } else {
-            throw new Error("User not found"); // Handle this error as you see fit
+            throw new Error('User not found') // Handle this error as you see fit
         }
     } catch (error) {
-        console.error("Error updating settings:", error);
+        console.error('Error updating settings:', error)
         // Handle the error as needed and redirect with an error message
-        res.redirect('/settings?error=true');
+        res.redirect('/settings?error=true')
     }
-});
-
+})
 
 router.get('/help', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
     res.send(`
@@ -1477,9 +1607,8 @@ router.get('/help', isAuthenticated, (req, res) => {
         <!-- End of Help Page Content -->
     </body>
     </html>
-    `);
-});
-
+    `)
+})
 
 // Payment page
 router.get('/payment', (req, res) => {
@@ -1500,42 +1629,42 @@ router.get('/payment', (req, res) => {
         </section>
 
         <!-- ... existing HTML ... -->
-    `);
-});
+    `)
+})
 
 // Payment confirmation page
 router.post('/payment-confirm', (req, res) => {
     // ... Handle payment confirmation and subscription update ...
 
-    const user = req.session.user;
+    const user = req.session.user
 
     // Update user's subscription status in your user data structure
-    user.paid = true; // Assuming you have a property called 'paid' to track subscription status
+    user.paid = true // Assuming you have a property called 'paid' to track subscription status
 
     // Store billing information
-    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json');
-    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'));
+    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
+    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
 
     const newBilling = {
         user: user.email,
         date: new Date(),
         amount: 10,
-    };
+    }
 
-    billings.push(newBilling);
-    fs.writeFileSync(billingsPath, JSON.stringify(billings, null, 2), 'utf8');
+    billings.push(newBilling)
+    fs.writeFileSync(billingsPath, JSON.stringify(billings, null, 2), 'utf8')
 
     // Add the subscription date to user's paidDates array
     if (!user.paidDates) {
-        user.paidDates = [];
+        user.paidDates = []
     }
-    user.paidDates.push(newBilling.date.toISOString()); 
+    user.paidDates.push(newBilling.date.toISOString())
 
-    req.session.user = user;
-    req.session.save(err => {
+    req.session.user = user
+    req.session.save((err) => {
         if (err) {
-            console.error("Error saving session:", err);
-            return res.status(500).send('Internal Server Error');
+            console.error('Error saving session:', err)
+            return res.status(500).send('Internal Server Error')
         }
 
         res.send(`
@@ -1551,26 +1680,28 @@ router.post('/payment-confirm', (req, res) => {
             </section>
 
             <!-- ... existing HTML ... -->
-        `);
-    });
-});
+        `)
+    })
+})
 
-// Billing history page 
+// Billing history page
 router.get('/billing', isAuthenticated, (req, res) => {
     // Check if the session exists
     if (!req.session || !req.session.user) {
-        return res.redirect('/login');
+        return res.redirect('/login')
     }
 
-    const user = req.session.user;
+    const user = req.session.user
 
     // Load billing history
-    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json');
-    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'));
+    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
+    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
 
-    const userBillings = billings.filter(billing => billing.user === user.email);
+    const userBillings = billings.filter(
+        (billing) => billing.user === user.email
+    )
 
-    let billingHtml = '';
+    let billingHtml = ''
 
     if (user.paid) {
         billingHtml = `
@@ -1580,16 +1711,18 @@ router.get('/billing', isAuthenticated, (req, res) => {
                     <p>You are on a paid plan. Your subscription started on: ${user.paidDate}</p>
                 </div>
             </section>
-        `;
+        `
     } else if (user.trialEnd && new Date(user.trialEnd) > new Date()) {
         billingHtml = `
             <section class="section">
                 <div class="container">
                     <h2 class="title is-2">Billing Information</h2>
-                    <p>Your trial period ends on: ${new Date(user.trialEnd).toLocaleDateString()}</p>
+                    <p>Your trial period ends on: ${new Date(
+                        user.trialEnd
+                    ).toLocaleDateString()}</p>
                 </div>
             </section>
-        `;
+        `
     } else {
         billingHtml = `
             <section class="section">
@@ -1599,7 +1732,7 @@ router.get('/billing', isAuthenticated, (req, res) => {
                     <a href="/payment" class="button is-primary">Proceed to Payment</a>
                 </div>
             </section>
-        `;
+        `
     }
 
     res.send(`
@@ -1642,27 +1775,20 @@ router.get('/billing', isAuthenticated, (req, res) => {
             /* ... Additional scripts ... */
         </script>
         </html>
-    `);
-});
-
-
-
-
-
+    `)
+})
 
 router.get('/logout', (req, res) => {
     // Destroy the session and log the user out
-    req.session.destroy(err => {
+    req.session.destroy((err) => {
         if (err) {
-            console.error("Error during logout:", err);
-            return res.redirect('/dashboard'); // or wherever you want to redirect in case of an error
+            console.error('Error during logout:', err)
+            return res.redirect('/dashboard') // or wherever you want to redirect in case of an error
         }
 
         // Redirect to the login page or homepage after logout
-        res.redirect('/login');
-    });
-});
+        res.redirect('/login')
+    })
+})
 
-
-
-module.exports = router;
+module.exports = router
