@@ -414,8 +414,25 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
    
        user.paid = isPaid;
 
+       
+
     const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
     const userArticles = articles.filter(article => article.email === req.session.user.email);
+
+      // Include analytics
+      const totalArticles = userArticles.length;
+      let totalCentralViews = 0;
+      let totalArticleViews = 0;
+  
+      userArticles.forEach(article => {
+          totalCentralViews += article.centralViews || 0;
+          totalArticleViews += article.articleViews || 0;
+      });
+  
+       // Read total page views from JSON file
+    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
+    const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
+
 
     let articlesHtml = userArticles.map(article => {
         let content = article.content;
@@ -551,6 +568,32 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         <section class="section">
             <div class="container">
                 <h1 class="title is-2 mb-6">Welcome, ${req.session.user.company}!</h1>
+
+                <div class="box mt-6 notion-inspired">
+                <h3 class="title is-4">Analytics</h3>
+                <div class="columns">
+                <div class="column">
+                        <div class="notification">
+                            <p class="title is-6">Total Knowledgebase Page Views:</p>
+                            <p class="subtitle">${pageViewsData.totalPageViews}</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="notification">
+                            <p class="title is-6">Total Articles</p>
+                            <p class="subtitle">${totalArticles}</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="notification">
+                            <p class="title is-6">Total Article Views</p>
+                            <p class="subtitle">${totalArticleViews}</p>
+                        </div>
+                    </div>
+                    
+
+                </div>
+            </div>
                 <div class="buttons mb-6">
                     <a href="/create-article" class="button is-primary">Create New Article</a>
                     <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>
@@ -578,7 +621,11 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         </script>
 
         ${billingSection}
+
+
             </div>
+
+
         </section>
         <!-- End of Billing and Trial Information -->
         <!-- Additional scripts -->
@@ -948,10 +995,21 @@ router.post('/share-knowledgebase', (req, res) => {
     res.redirect('/dashboard');
 });
 
-//KB page
+
+// Knowledgebase page
 router.get('/knowledgebase/:companyName', (req, res) => {
     const companyName = req.params.companyName;
-    
+
+    // Read total page views from JSON file
+    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
+    let pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
+
+    // Increment page views counter
+    pageViewsData.totalPageViews++;
+
+    // Write updated total page views back to JSON file
+    fs.writeFileSync(pageViewsPath, JSON.stringify(pageViewsData, null, 2), 'utf8');
+
     const searchQuery = req.query.search || "";
 
     const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
@@ -960,6 +1018,12 @@ router.get('/knowledgebase/:companyName', (req, res) => {
     const user = users.find(user => user.company === companyName);
 
     let userArticles = articles.filter(article => article.email === user.email);
+    const totalArticles = userArticles.length;
+    let totalArticleViews = 0;
+
+    userArticles.forEach(article => {
+        totalArticleViews += article.articleViews || 0;
+    });
 
     if (searchQuery) {
         userArticles = userArticles.filter(article => article.title.includes(searchQuery) || article.content.includes(searchQuery));
@@ -983,84 +1047,93 @@ router.get('/knowledgebase/:companyName', (req, res) => {
     }).join('') || '<p class="subtitle has-text-grey">No articles available.</p>';
 
     res.send(`
+    <!DOCTYPE html>
     <html>
-        <head>
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
-            <style>
-                body {
-                    font-family: 'Avenir Next', sans-serif;
-                    background-color: #F4F4F5;
-                }
-                .hero {
-                    background-color: ${user.headerColor || '#3273dc'};
-                    border-bottom: 1px solid #E4E4E7;
-                    color: #ffffff;
-                }
-                .card {
-                    margin-top: 20px;
-                    border: none;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    transition: box-shadow 0.3s;
-                }
-                .card:hover {
-                    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.1);
-                }
-                .card-header-title {
-                    font-size: 1.25rem;
-                    font-weight: 500;
-                }
-                .card-content {
-                    background-color: #ffffff;
-                }
-                .card-footer-item {
-                    color: #23d160;
-                }
-                .input.is-large {
-                    border-color: #23d160;
-                }
-                .icon.is-left {
-                    color: #23d160;
-                }
-                .hero-title {
-                    color: #ffffff;
-                }
-            </style>
-        </head>
-        <body>
-            <section class="hero is-medium">
-                <div class="hero-body">
-                    <div class="container">
-                        <h1 class="title is-2 mb-6 hero-title">Knowledgebase for ${companyName}</h1>
-                        <div class="field">
-                            <div class="control has-icons-left">
-                                <input type="text" name="search" placeholder="Search articles..." class="input is-large" value="${searchQuery}" onkeyup="debounceSearch('${companyName}', event.target.value)">
-                                <span class="icon is-left">
-                                    <i class="fas fa-search"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+    <head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <style>
+        body {
+            font-family: 'Avenir Next', sans-serif;
+            background-color: #F4F4F5;
+        }
+        .hero {
+            background-color: ${user.headerColor || '#3273dc'};
+            border-bottom: 1px solid #E4E4E7;
+            color: #ffffff;
+        }
+        .card {
+            margin-top: 20px;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.3s;
+        }
+        .card:hover {
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.1);
+        }
+        .card-header-title {
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+        .card-content {
+            background-color: #ffffff;
+        }
+        .card-footer-item {
+            color: #23d160;
+        }
+        .input.is-large {
+            border-color: #23d160;
+        }
+        .icon.is-left {
+            color: #23d160;
+        }
+        .hero-title {
+            color: #ffffff;
+        }
+    </style>
+    </head>
+    <body>
+    <section class="hero is-medium">
+    <div class="hero-body">
+        <div class="container">
+            <h1 class="title is-2 mb-6 hero-title">Knowledgebase for ${companyName}</h1>
+            <div class="field">
+                <div class="control has-icons-left">
+                    <input type="text" name="search" placeholder="Search articles..." class="input is-large" value="${searchQuery}" onkeyup="debounceSearch('${companyName}', event.target.value)">
+                    <span class="icon is-left">
+                        <i class="fas fa-search"></i>
+                    </span>
                 </div>
-            </section>
-            <section class="section">
-                <div class="container">
-                    ${articlesHtml}
-                </div>
-            </section>
-            <script src="https://kit.fontawesome.com/a076d05399.js"></script>
-            <script>
-                let debounceTimeout;
-                function debounceSearch(companyName, query) {
-                    clearTimeout(debounceTimeout);
-                    debounceTimeout = setTimeout(() => {
-                        window.location.href = "/knowledgebase/" + encodeURIComponent(companyName) + "?search=" + encodeURIComponent(query);
-                    }, 500);
-                }
-            </script>
-        </body>
+            </div>
+        </div>
+    </div>
+</section>
+       
+
+        <!-- Knowledgebase articles section -->
+        <section class="section">
+            <div class="container">
+                ${articlesHtml}
+            </div>
+        </section>
+
+        <!-- Additional scripts -->
+        <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+        <script>
+        let debounceTimeout;
+        function debounceSearch(companyName, query) {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                window.location.href = "/knowledgebase/" + encodeURIComponent(companyName) + "?search=" + encodeURIComponent(query);
+            }, 500);
+        }
+    </script>
+        <!-- Other scripts -->
+    </body>
     </html>
     `);
 });
+
+
 
 
 
@@ -1074,8 +1147,11 @@ router.get('/knowledgebase/:companyName', (req, res) => {
 router.get('/article/:articleId', (req, res) => {
     const articleId = req.params.articleId;
 
-    const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
-    const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'users.json'), 'utf8'));
+    const articlesPath = path.join(__dirname, '..', 'data', 'articles.json');
+    const usersPath = path.join(__dirname, '..', 'data', 'users.json');
+
+    const articles = JSON.parse(fs.readFileSync(articlesPath, 'utf8'));
+    const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
 
     const article = articles.find(a => a.id === articleId);
 
@@ -1085,6 +1161,14 @@ router.get('/article/:articleId', (req, res) => {
 
     const user = users.find(u => u.email === article.email);
     const companyName = user ? user.company : 'Default Company';
+     // Update the article views and central views
+     article.articleViews = (article.articleViews || 0) + 1;
+     article.centralViews = (article.centralViews || 0) + 1;
+ 
+     // Save the updated articles back to the file
+     const updatedArticles = articles.map(a => (a.id === articleId ? article : a));
+     fs.writeFileSync(articlesPath, JSON.stringify(updatedArticles, null, 2), 'utf8');
+ 
 
     const pageContent = `
     <html>
