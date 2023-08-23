@@ -176,7 +176,7 @@ router.post('/login', (req, res) => {
                 <nav class="navbar is-white" role="navigation" aria-label="main navigation">
                     <div class="navbar-brand">
                         <a class="navbar-item" href="/">
-                            <strong>Knowledgebase</strong>
+                            <strong>Yōsei</strong>
                         </a>
                     </div>
                 </nav>
@@ -288,7 +288,7 @@ router.post('/login', (req, res) => {
                         <nav class="navbar is-white" role="navigation" aria-label="main navigation">
                             <div class="navbar-brand">
                                 <a class="navbar-item" href="/dashboard">
-                                    <strong>Knowledgebase</strong>
+                                    <strong>Yōsei</strong>
                                 </a>
                                 <!-- Mobile Navbar Burger -->
                                 <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
@@ -322,7 +322,7 @@ router.post('/login', (req, res) => {
                                 <h1 class="title is-2 mb-6">Welcome, ${user.company}!</h1>
                                 <div class="buttons mb-6">
                                     <a href="/create-article" class="button is-primary">Create New Article</a>
-                                    <a href="/share-knowledgebase" class="button is-link">Share Knowledgebase</a>     
+                                    <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>     
                                 </div>
                                 ${articlesHtml || '<p>You have no articles yet. Create one to get started!</p>'}
 
@@ -372,7 +372,7 @@ router.post('/login', (req, res) => {
                     <nav class="navbar is-white" role="navigation" aria-label="main navigation">
                         <div class="navbar-brand">
                             <a class="navbar-item" href="/">
-                                <strong>Knowledgebase</strong>
+                                <strong>Yōsei</strong>
                             </a>
                         </div>
                     </nav>
@@ -502,7 +502,7 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         <nav class="navbar" role="navigation" aria-label="main navigation">
             <div class="navbar-brand">
                 <a class="navbar-item" href="/dashboard">
-                    <strong>Knowledgebase</strong>
+                    <strong>Yōsei</strong>
                 </a>
                 <!-- Mobile Navbar Burger -->
                 <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
@@ -553,7 +553,7 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
                 <h1 class="title is-2 mb-6">Welcome, ${req.session.user.company}!</h1>
                 <div class="buttons mb-6">
                     <a href="/create-article" class="button is-primary">Create New Article</a>
-                    <a href="/share-knowledgebase" class="button is-link">Share Knowledgebase</a>
+                    <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>
                 </div>
                 ${articlesHtml || '<p>You have no articles yet. Create one to get started!</p>'}
             </div>
@@ -881,7 +881,7 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
             <nav class="navbar" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
                     <a class="navbar-item" href="/dashboard">
-                        <strong>Knowledgebase</strong>
+                        <strong>Yōsei</strong>
                     </a>
                 </div>
                 <div class="navbar-menu">
@@ -906,8 +906,8 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
             <!-- Main Content -->
             <section class="section">
                 <div class="container">
-                    <h1 class="title is-2 mb-6">Share Your Knowledgebase</h1>
-                    <p class="subtitle mb-4">You can share your knowledgebase with others using the link below:</p>
+                    <h1 class="title is-2 mb-6">Share Your Yōsei</h1>
+                    <p class="subtitle mb-4">You can share your Yōsei page with others using the link below:</p>
                     <div class="field has-addons mb-4">
                         <div class="control is-expanded">
                             <input type="text" value="${uniqueLink}" class="input" readonly>
@@ -916,7 +916,7 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
                             <button onclick="copyLink()" class="button is-primary">Copy Link</button>
                         </div>
                     </div>
-                    <p>Customize the look and feel of your knowledgebase to match your company's brand.</p>
+                    <p>Customize the look and feel of your Yōsei page to match your company's brand.</p>
                     <a href="/settings" class="button is-link mt-4">Choose a Theme</a>
                     <script>
                         function copyLink() {
@@ -1179,7 +1179,7 @@ router.get('/settings', isAuthenticated, (req, res) => {
                 <nav class="navbar" role="navigation" aria-label="main navigation">
                     <div class="navbar-brand">
                         <a class="navbar-item" href="/dashboard">
-                            <strong>Knowledgebase</strong>
+                            <strong>Yōsei</strong>
                         </a>
                     </div>
                     <div class="navbar-menu">
