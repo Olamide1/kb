@@ -18,5 +18,11 @@
         "title": "Pellow Case",
         "content": "This is the pellow case of the century that helps the other pellow cases.",
         "email": "ola@gmail.com"
+    },
+    {
+        "id": "0e42e45c-4aa2-42f4-8e93-36e3596014b3",
+        "title": "What's up!",
+        "content": "Hello, We do need a central DB though.\r\nWe can use cache for when the user is offline, but that's like for later later. Do we have drafts capability? If you're writing and you mistakenly press/navigate back, would you lose your work?",
+        "email": "chuks@tenner.com"
     }
 ]
