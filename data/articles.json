@@ -1,16 +1,22 @@
 [
-  {
-    "id": "c3b03616-bfa5-40dd-85f9-a84d06b2ee19",
-    "title": "New article",
-    "content": "Still slightly shocked by Man Utd’s performance against Wolves. \r\n\r\nBoth with and without the ball. \r\n\r\nThey pressed how they usually do (Wingers inside on oppo’s CBs) but didn’t release their full back to press the oppositions full back. It was so easy for Wolves to play out.\r\n",
-    "email": "obakam@accounting.com"
-  },
-  {
-    "id": "5b1fac74-26c7-4aa8-a496-c83226ac9737",
-    "title": "New article just dropped",
-    "content": "Fixing the new article drop that we have.",
-    "email": "ola@gmail.com",
-    "articleViews": 3,
-    "centralViews": 3
-  }
+    {
+        "id": "c3b03616-bfa5-40dd-85f9-a84d06b2ee19",
+        "title": "New article",
+        "content": "Still slightly shocked by Man Utd’s performance against Wolves. \r\n\r\nBoth with and without the ball. \r\n\r\nThey pressed how they usually do (Wingers inside on oppo’s CBs) but didn’t release their full back to press the oppositions full back. It was so easy for Wolves to play out.\r\n",
+        "email": "obakam@accounting.com"
+    },
+    {
+        "id": "5b1fac74-26c7-4aa8-a496-c83226ac9737",
+        "title": "New article just dropped",
+        "content": "Fixing the new article drop that we have.",
+        "email": "ola@gmail.com",
+        "articleViews": 5,
+        "centralViews": 5
+    },
+    {
+        "id": "91aec172-77b2-469d-9942-5f4edce8078f",
+        "title": "Pellow Case",
+        "content": "This is the pellow case of the century that helps the other pellow cases.",
+        "email": "ola@gmail.com"
+    }
 ]

@@ -249,6 +249,18 @@ router.post('/login', (req, res) => {
 
                 const articles = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'articles.json'), 'utf8'));
                 const userArticles = articles.filter(article => article.email === user.email);
+                 // Include analytics
+      const totalArticles = userArticles.length;
+      let totalCentralViews = 0;
+      let totalArticleViews = 0;
+  
+      userArticles.forEach(article => {
+          totalCentralViews += article.centralViews || 0;
+          totalArticleViews += article.articleViews || 0;
+      });
+                // Read total page views from JSON file
+    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
+    const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
 
                 let articlesHtml = userArticles.map(article => {
                     let content = article.content;
@@ -320,6 +332,26 @@ router.post('/login', (req, res) => {
                         <section class="section">
                             <div class="container">
                                 <h1 class="title is-2 mb-6">Welcome, ${user.company}!</h1>
+                                <div class="box mt-6 notion-inspired">
+                                <h3 class="title is-4">Analytics</h3>
+                                <div class="columns">
+                                
+                                    <div class="column">
+                                        <div class="notification">
+                                            <p class="title is-6">Total Articles</p>
+                                            <p class="subtitle">${totalArticles}</p>
+                                        </div>
+                                    </div>
+                                    <div class="column">
+                                        <div class="notification">
+                                            <p class="title is-6">Total Article Views</p>
+                                            <p class="subtitle">${totalArticleViews}</p>
+                                        </div>
+                                    </div>
+                                    
+                
+                                </div>
+                            </div>
                                 <div class="buttons mb-6">
                                     <a href="/create-article" class="button is-primary">Create New Article</a>
                                     <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>     
@@ -572,12 +604,7 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
                 <div class="box mt-6 notion-inspired">
                 <h3 class="title is-4">Analytics</h3>
                 <div class="columns">
-                <div class="column">
-                        <div class="notification">
-                            <p class="title is-6">Total Knowledgebase Page Views:</p>
-                            <p class="subtitle">${pageViewsData.totalPageViews}</p>
-                        </div>
-                    </div>
+                
                     <div class="column">
                         <div class="notification">
                             <p class="title is-6">Total Articles</p>
@@ -1000,15 +1027,23 @@ router.post('/share-knowledgebase', (req, res) => {
 router.get('/knowledgebase/:companyName', (req, res) => {
     const companyName = req.params.companyName;
 
-    // Read total page views from JSON file
-    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
-    let pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
+   // Read total page views from JSON file
+   const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json');
+   let pageViewsData = {};
 
-    // Increment page views counter
-    pageViewsData.totalPageViews++;
+   try {
+       pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'));
+   } catch (error) {
+       // If the file doesn't exist or is invalid, create a new data structure
+       pageViewsData.totalPageViews = 0;
+   }
 
-    // Write updated total page views back to JSON file
-    fs.writeFileSync(pageViewsPath, JSON.stringify(pageViewsData, null, 2), 'utf8');
+   // Increment page views counter
+   pageViewsData.totalPageViews++;
+
+   // Write updated total page views back to JSON file
+   fs.writeFileSync(pageViewsPath, JSON.stringify(pageViewsData, null, 2), 'utf8');
+
 
     const searchQuery = req.query.search || "";
 
@@ -1568,6 +1603,28 @@ router.get('/billing', isAuthenticated, (req, res) => {
     }
 
     res.send(`
+    <html>
+    <head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+        <style>
+            body {
+                background-color: #f4f5f7;
+            }
+            .notion-inspired {
+                border: 1px solid #e1e4e8;
+                border-radius: 8px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                background-color: #ffffff;
+                padding: 2rem;
+            }
+            .is-primary {
+                background-color: #6366F1;
+            }
+            .is-primary:hover {
+                background-color: #4F46E5;
+            }
+        </style>
+    </head>
         <!-- ... existing HTML ... -->
 
         <!-- Billing Information -->
@@ -1584,6 +1641,7 @@ router.get('/billing', isAuthenticated, (req, res) => {
         <script>
             /* ... Additional scripts ... */
         </script>
+        </html>
     `);
 });
 
