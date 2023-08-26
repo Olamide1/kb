@@ -141,6 +141,7 @@ dist
 # SvelteKit build / generate output
 .svelte-kit
 
-*test* // ignore any file with 'test' in it's name.
+# Ignore any file with 'test' in it's name.
+*test*
 
 # End of https://www.toptal.com/developers/gitignore/api/node
