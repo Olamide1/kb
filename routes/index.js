@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid')
 const router = express.Router()
 const session = require('express-session')
 const bodyParser = require('body-parser')
+const differenceInDays = require('date-fns/differenceInDays')
 
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
@@ -50,6 +51,10 @@ const colorOptions = [
 ]
 
 const saltRounds = 10
+
+// Putting here so we only have to do this once.
+const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
+const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8')) // returns an array.
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')))
@@ -160,6 +165,7 @@ router.get('/login', (req, res) => {
 router.post('/login', (req, res) => {
     const { email, password } = req.body
 
+    // TODO: should ideally be async.
     const users = JSON.parse(
         fs.readFileSync(
             path.join(__dirname, '..', 'data', 'users.json'),
@@ -201,10 +207,10 @@ router.post('/login', (req, res) => {
                 <!-- Additional scripts -->
                 <script>
                 /* Add this to your existing CSS */
-.hidden {
-    display: none;
-}
-                    /* ... Additional scripts ... */
+                    .hidden {
+                        display: none;
+                    }
+                /* ... Additional scripts ... */
                 </script>
             </body>
             </html>
@@ -220,43 +226,82 @@ router.post('/login', (req, res) => {
             req.session.user = user
 
             // Check if the user is on a paid plan
-            const billingsPath = path.join(
-                __dirname,
-                '..',
-                'data',
-                'billings.json'
-            )
-            const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
-            const isPaid = billings.some(
-                (billing) => billing.user === user.email
-            )
 
+            /**
+             * Find out if they have payment history.
+             * Get the last date they paid.
+             * Then check if that date is within the current payment cycle,
+             * Or if their subscription has expired, and they need to pay again.
+             *
+             * TODO: maybe even move this whole payment logic to a stand alone service.
+             */
+
+            const userPreviousPayments = billings
+                .filter(
+                    (billing) =>
+                        billing?.user === user.email &&
+                        parseFloat(billing?.amount) > 0
+                )
+                .sort(
+                    // sort date in ascending order...
+                    (a, b) => a.date > b.date
+                )
+
+            let isPayingCustomer = false
+            if (userPreviousPayments.length > 0) {
+                isPayingCustomer = true
+            } else {
+                // TODO: specify if the user has passed trial period or not.
+            }
+
+            // We only need to do this, if they're like new customers/users.
             // Include billing and trial information
             const trialDays = 7 // Replace with your trial duration
             const trialEndDate = new Date()
             trialEndDate.setDate(trialEndDate.getDate() + trialDays)
 
             // Calculate next payment due date (30 days from the last payment)
-            const lastPaymentDate = isPaid
-                ? new Date(billings[billings.length - 1].date)
+            const lastPaymentDate = isPayingCustomer
+                ? new Date(
+                      userPreviousPayments[userPreviousPayments.length - 1].date
+                  )
                 : null
+
+            // if lastPaymentDate is less than 30 days (from today), we're good. Else, they're owing us.
+            let isUserOwingUs = false
+            if (
+                lastPaymentDate &&
+                differenceInDays(new Date(), lastPaymentDate) > 30
+            ) {
+                isUserOwingUs = true
+            }
+
             const nextPaymentDueDate = lastPaymentDate
                 ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
                 : null
-            // Include billing and trial information
+
+            /**
+             * TODO: check if they've passed their trial period.
+             * What should we do if they don't pay? Should we have a grace period? If yes, for how long?
+             */
+            // Include billing and trial information.
             const billingSection = `
                 <section class="section">
                     <div class="container">
                         <div class="billing-info">
                             ${
-                                isPaid
+                                isPayingCustomer && isUserOwingUs
+                                    ? `
+                                <p>You are on a paid plan. But you're behind payment.</p>
+                                `
+                                    : isPayingCustomer
                                     ? `
                                 <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
-                            `
+                                `
                                     : `
                                 <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
                                 <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
-                            `
+                                `
                             }
                         </div>
                     </div>
@@ -327,8 +372,9 @@ router.post('/login', (req, res) => {
                                     }" class="button is-danger">Delete</a>
                                 </div>
                             </div>
-                        `})
-                        .join('')
+                        `
+                    })
+                    .join('')
 
                 res.send(`
                     <!DOCTYPE html>
@@ -480,17 +526,41 @@ router.post('/login', (req, res) => {
 })
 
 router.get('/dashboard', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
     const user = req.session.user
-    // Check if the user is on a paid plan
-    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
-    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
-    const isPaid = billings.some((billing) => billing.user === user.email)
 
-    user.paid = isPaid
+    // TODO: remove duplicate code
+    const userPreviousPayments = billings
+        .filter(
+            (billing) =>
+                billing?.user === user.email && parseFloat(billing?.amount) > 0
+        )
+        .sort(
+            // sort date in ascending order...
+            (a, b) => a.date > b.date
+        )
+
+    let isPayingCustomer = false
+    if (userPreviousPayments.length > 0) {
+        isPayingCustomer = true
+    } else {
+        // TODO: specify if the user has passed trial period or not.
+    }
+
+    // Calculate next payment due date (30 days from the last payment)
+    const lastPaymentDate = isPayingCustomer
+        ? new Date(billings[billings.length - 1].date)
+        : null
+    const nextPaymentDueDate = lastPaymentDate
+        ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null
+
+    // if lastPaymentDate is less than 30 days (from today), we're good. Else, they're owing us.
+    let isUserOwingUs = false
+    if (lastPaymentDate && differenceInDays(new Date(), lastPaymentDate) > 30) {
+        isUserOwingUs = true
+    }
+
+    user.paid = isPayingCustomer
 
     const articles = JSON.parse(
         fs.readFileSync(
@@ -549,33 +619,34 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         })
         .join('')
 
+    /**
+     * TODO: Trial should be 7 days after the user registered???
+     * So how do we know when a user registered??
+     */
     // Include billing and trial information
     const trialDays = 7 // Replace with your trial duration
     const trialEndDate = new Date()
     trialEndDate.setDate(trialEndDate.getDate() + trialDays)
 
-    // Calculate next payment due date (30 days from the last payment)
-    const lastPaymentDate = isPaid
-        ? new Date(billings[billings.length - 1].date)
-        : null
-    const nextPaymentDueDate = lastPaymentDate
-        ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-        : null
     // Include billing and trial information
     const billingSection = `
      <section class="section">
          <div class="container">
              <div class="billing-info">
-                 ${
-                     isPaid
-                         ? `
-                     <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
-                 `
-                         : `
-                     <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
-                     <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
-                 `
-                 }
+                ${
+                    isPayingCustomer && isUserOwingUs
+                        ? `
+                    <p>You are on a paid plan. But you're behind payment.</p>
+                    `
+                        : isPayingCustomer
+                        ? `
+                    <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
+                    `
+                        : `
+                    <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
+                    <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
+                    `
+                }
              </div>
          </div>
      </section>
@@ -607,9 +678,9 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
                 box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
             }
             /* Add this to your existing CSS */
-.hidden {
-    display: none;
-}
+            .hidden {
+                display: none;
+            }
         </style>
     </head>
     <body>
@@ -719,7 +790,6 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
         </script>
 
         ${billingSection}
-
 
             </div>
 
@@ -1641,8 +1711,6 @@ router.post('/payment-confirm', (req, res) => {
     user.paid = true // Assuming you have a property called 'paid' to track subscription status
 
     // Store billing information
-    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
-    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
 
     const newBilling = {
         user: user.email,
@@ -1693,8 +1761,6 @@ router.get('/billing', isAuthenticated, (req, res) => {
     const user = req.session.user
 
     // Load billing history
-    const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
-    const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8'))
 
     const userBillings = billings.filter(
         (billing) => billing.user === user.email
@@ -1702,6 +1768,7 @@ router.get('/billing', isAuthenticated, (req, res) => {
 
     let billingHtml = ''
 
+    // TODO: need a better way to handle this (checking when and if a user is on a paid plan).
     if (user.paid) {
         billingHtml = `
             <section class="section">
