@@ -1012,6 +1012,7 @@ router.post('/create-article', isAuthenticated, (req, res) => {
         title: req.body.title,
         content: req.body.content,
         email: req.session.user.email,
+        section: req.body.section, // Add the section property
     }
 
     // Add the new article to the list of articles
@@ -1034,6 +1035,9 @@ router.get('/create-article', isAuthenticated, (req, res) => {
     if (!req.session || !req.session.user) {
         return res.redirect('/login')
     }
+
+
+
 
     res.send(`
     <html>
@@ -1092,6 +1096,9 @@ router.get('/create-article', isAuthenticated, (req, res) => {
     </html>
     `)
 })
+
+
+
 
 // Share knowledgebase page
 
@@ -1198,6 +1205,7 @@ router.get('/knowledgebase/:companyName', (req, res) => {
     // Read total page views from JSON file
     const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
     let pageViewsData = {}
+    
 
     try {
         pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'))

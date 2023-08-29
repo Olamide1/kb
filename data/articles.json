@@ -6,23 +6,23 @@
         "email": "obakam@accounting.com"
     },
     {
-        "id": "5b1fac74-26c7-4aa8-a496-c83226ac9737",
-        "title": "New article just dropped",
-        "content": "Fixing the new article drop that we have.",
-        "email": "ola@gmail.com",
-        "articleViews": 5,
-        "centralViews": 5
-    },
-    {
         "id": "91aec172-77b2-469d-9942-5f4edce8078f",
         "title": "Pellow Case",
         "content": "This is the pellow case of the century that helps the other pellow cases.",
-        "email": "ola@gmail.com"
+        "email": "ola@gmail.com",
+        "articleViews": 2,
+        "centralViews": 2
     },
     {
         "id": "0e42e45c-4aa2-42f4-8e93-36e3596014b3",
         "title": "What's up!",
         "content": "Hello, We do need a central DB though.\r\nWe can use cache for when the user is offline, but that's like for later later. Do we have drafts capability? If you're writing and you mistakenly press/navigate back, would you lose your work?",
         "email": "chuks@tenner.com"
+    },
+    {
+        "id": "686c6a82-36b0-4e66-8337-479833363885",
+        "title": "Another new article",
+        "content": "avkaln Anov aionvbioe another new article thing thing...",
+        "email": "ola@gmail.com"
     }
 ]

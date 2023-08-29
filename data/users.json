@@ -19,6 +19,8 @@
         "email": "ola@gmail.com",
         "password": "$2b$10$2At8tiq1x3ep08CD0SRJiOqSWK9HkfwZGH5o8FG2zVi56jQPishLC",
         "company": "Lamide Ltd",
-        "headerColor": "#ffdd57"
+        "headerColor": "#9d65c9",
+        "role": "Product Manager",
+        "country": "Nigeria"
     }
 ]
