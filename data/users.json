@@ -1,1 +1,37 @@
-[{"email":"obakam@accounting.com","password":"$2b$10$wbtji.TjDBDA18XdDR2nsunizNVOeeTGLEXCcZC6HeDid3ah0ODaW","company":"Passa","headerColor":"#ffdd57"},{"email":"chuks@tenner.com","password":"$2b$10$hJCtfkFxccHp7yYb2wVfrOyDUKrz6PmSNeXVtXIAst2JcJtxjylWu","company":"Chuks Tenner"},{"email":"oakomolafe@gmail.com","password":"$2b$10$l3003bps2wjjtYNjKg/Q1us4YfrZ2bS5QSzyi1oXX1AIe1DESvOOq","company":"Paper Place"},{"email":"ola@gmail.com","password":"$2b$10$2At8tiq1x3ep08CD0SRJiOqSWK9HkfwZGH5o8FG2zVi56jQPishLC","company":"Lamide Ltd","headerColor":"#9d65c9","role":"Product Manager","country":"Nigeria"},{"email":"ola+1@gmail.com","password":"$2b$10$thvmjnf4HDo2czLap0sF0u8jVkEEC.o9Jgx4NPg0nnWDCFE/RYX9W","company":"Placeholder Ltd"},{"email":"pa@gmail.com","password":"$2b$10$vRNAsTE0w3tT/ohLwXhXi.jWO7YUO9sliCgsb6lU6kqNDSdWqemZ.","company":"Shafe"}]
+[
+    {
+        "email": "obakam@accounting.com",
+        "password": "$2b$10$wbtji.TjDBDA18XdDR2nsunizNVOeeTGLEXCcZC6HeDid3ah0ODaW",
+        "company": "Passa",
+        "headerColor": "#ffdd57"
+    },
+    {
+        "email": "chuks@tenner.com",
+        "password": "$2b$10$hJCtfkFxccHp7yYb2wVfrOyDUKrz6PmSNeXVtXIAst2JcJtxjylWu",
+        "company": "Chuks Tenner"
+    },
+    {
+        "email": "oakomolafe@gmail.com",
+        "password": "$2b$10$l3003bps2wjjtYNjKg/Q1us4YfrZ2bS5QSzyi1oXX1AIe1DESvOOq",
+        "company": "Paper Place"
+    },
+    {
+        "email": "ola@gmail.com",
+        "password": "$2b$10$2At8tiq1x3ep08CD0SRJiOqSWK9HkfwZGH5o8FG2zVi56jQPishLC",
+        "company": "Lamide Ltd",
+        "headerColor": "#9d65c9",
+        "role": "Product Manager",
+        "country": "Nigeria"
+    },
+    {
+        "email": "ola+1@gmail.com",
+        "password": "$2b$10$thvmjnf4HDo2czLap0sF0u8jVkEEC.o9Jgx4NPg0nnWDCFE/RYX9W",
+        "company": "Placeholder Ltd"
+    },
+    {
+        "email": "pa@gmail.com",
+        "password": "$2b$10$vRNAsTE0w3tT/ohLwXhXi.jWO7YUO9sliCgsb6lU6kqNDSdWqemZ.",
+        "company": "Shafe",
+        "headerColor": "#9d65c9"
+    }
+]
