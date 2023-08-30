@@ -8,12 +8,15 @@ const router = express.Router()
 const session = require('express-session')
 const bodyParser = require('body-parser')
 const differenceInDays = require('date-fns/differenceInDays')
+const addDays = require('date-fns/addDays')
 
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
 
 const usersFilePath = path.join(__dirname, '..', 'data', 'users.json')
 const articlesFilePath = path.join(__dirname, '..', 'data', 'articles.json')
+
+const THIRTY_DAYS = 30
 
 // Load the JSON data using the paths
 const users = require(usersFilePath)
@@ -40,6 +43,60 @@ function isAuthenticated(req, res, next) {
     // If not authenticated, store the original URL to redirect after login
     req.session.originalUrl = req.originalUrl
     res.redirect('/login')
+}
+
+/**
+ * This middleware must always come after isAuthenticated() middleware.
+ * TODO: put a check ot make sure the previous middleware was isAuthenticated
+ * @param {*} req
+ * @param {*} res
+ * @param {*} next
+ */
+function processPaymentInfo(req, res, next) {
+    let user = req.session.user
+
+    const userPreviousPayments = billings
+        .filter(
+            (billing) =>
+                billing?.user === user.email && parseFloat(billing?.amount) > 0
+        )
+        .sort(
+            // sort date in ascending order...
+            (a, b) => a.date > b.date
+        )
+
+    user.isPayingCustomer = false
+    if (userPreviousPayments.length > 0) {
+        user.isPayingCustomer = true
+    } else {
+        // TODO: specify if the user has passed trial period or not.
+    }
+
+    // Calculate next payment due date (30 days from the last payment)
+    const lastPaymentDate = user.isPayingCustomer
+        ? new Date(userPreviousPayments[userPreviousPayments.length - 1].date)
+        : null
+    const nextPaymentDueDate = lastPaymentDate
+        ? addDays(lastPaymentDate, THIRTY_DAYS) // new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null
+
+    // if lastPaymentDate is less than 30 days (from today), we're good. Else, they're owing us.
+    let isUserOwingUs = false
+    if (
+        lastPaymentDate &&
+        differenceInDays(new Date(), lastPaymentDate) > THIRTY_DAYS
+    ) {
+        // TODO: hardcode 30 days?
+        isUserOwingUs = true
+    }
+    user.lastPaymentDate = lastPaymentDate
+    user.isUserOwingUs = isUserOwingUs
+    user.nextPaymentDueDate = nextPaymentDueDate
+
+    // Update user object.
+    req.session.user = user
+
+    next()
 }
 
 const colorOptions = [
@@ -257,16 +314,16 @@ router.post('/login', (req, res) => {
                     </section>
 
                     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const navbarBurger = document.querySelector('.navbar-burger');
-        const navbarMenu = document.querySelector('.navbar-menu');
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const navbarBurger = document.querySelector('.navbar-burger');
+                            const navbarMenu = document.querySelector('.navbar-menu');
 
-        navbarBurger.addEventListener('click', () => {
-            navbarBurger.classList.toggle('is-active');
-            navbarMenu.classList.toggle('is-active');
-        });
-    });
-</script>
+                            navbarBurger.addEventListener('click', () => {
+                                navbarBurger.classList.toggle('is-active');
+                                navbarMenu.classList.toggle('is-active');
+                            });
+                        });
+                    </script>
         
                 </body>
                 </html>
@@ -275,42 +332,8 @@ router.post('/login', (req, res) => {
     })
 })
 
-router.get('/dashboard', isAuthenticated, (req, res) => {
-    const user = req.session.user
-
-    // TODO: remove duplicate code
-    const userPreviousPayments = billings
-        .filter(
-            (billing) =>
-                billing?.user === user.email && parseFloat(billing?.amount) > 0
-        )
-        .sort(
-            // sort date in ascending order...
-            (a, b) => a.date > b.date
-        )
-
-    let isPayingCustomer = false
-    if (userPreviousPayments.length > 0) {
-        isPayingCustomer = true
-    } else {
-        // TODO: specify if the user has passed trial period or not.
-    }
-
-    // Calculate next payment due date (30 days from the last payment)
-    const lastPaymentDate = isPayingCustomer
-        ? new Date(billings[billings.length - 1].date)
-        : null
-    const nextPaymentDueDate = lastPaymentDate
-        ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-        : null
-
-    // if lastPaymentDate is less than 30 days (from today), we're good. Else, they're owing us.
-    let isUserOwingUs = false
-    if (lastPaymentDate && differenceInDays(new Date(), lastPaymentDate) > 30) {
-        isUserOwingUs = true
-    }
-
-    user.paid = isPayingCustomer
+router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
+    const user = req.session.user // const, right?
 
     const articles = JSON.parse(
         fs.readFileSync(
@@ -348,29 +371,31 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
             }
 
             return `
-        <div class="box mb-4">
-            <h3 class="title is-4">${article.title}</h3>
-            <p>${content}</p>
-            <div class="buttons">
-                ${
-                    seeMore
-                        ? '<a href="#" class="button is-link">See More</a>'
-                        : ''
-                }
-                <a href="/edit-article/${
-                    article.id
-                }" class="button is-warning">Edit</a>
-                <a href="/delete-article/${
-                    article.id
-                }" class="button is-danger">Delete</a>
-            </div>
-        </div>
-        `
+                <div class="box mb-4">
+                    <h3 class="title is-4">${article.title}</h3>
+                    <p>${content}</p>
+                    <div class="buttons">
+                        ${
+                            seeMore
+                                ? '<a href="#" class="button is-link">See More</a>'
+                                : ''
+                        }
+                        <a href="/edit-article/${
+                            article.id
+                        }" class="button is-warning">Edit</a>
+                        <a href="/delete-article/${
+                            article.id
+                        }" class="button is-danger">Delete</a>
+                    </div>
+                </div>
+            `
         })
         .join('')
 
     /**
      * TODO: Trial should be 7 days after the user registered???
+     * It should be 7 days after date of registration.
+     * 
      * So how do we know when a user registered??
      */
     // Include billing and trial information
@@ -384,13 +409,13 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
          <div class="container">
              <div class="billing-info">
                 ${
-                    isPayingCustomer && isUserOwingUs
+                    user.isPayingCustomer && user.isUserOwingUs
                         ? `
                     <p>You are on a paid plan. But you're behind payment.</p>
                     `
-                        : isPayingCustomer
+                        : user.isPayingCustomer
                         ? `
-                    <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
+                    <p>You are on a paid plan. Next payment due on: ${user.nextPaymentDueDate.toDateString()}</p>
                     `
                         : `
                     <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
@@ -400,7 +425,7 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
              </div>
          </div>
      </section>
- `
+    `
 
     res.send(`
     <!DOCTYPE html>
@@ -579,10 +604,6 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
 
 // edit and delete
 router.get('/delete-article/:id', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
 
     const articleId = req.params.id
     const articles = JSON.parse(
@@ -618,10 +639,6 @@ router.get('/delete-article/:id', isAuthenticated, (req, res) => {
 })
 
 router.get('/confirm-delete/:id', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
 
     const articleId = req.params.id
     let articles = JSON.parse(
@@ -643,9 +660,7 @@ router.get('/confirm-delete/:id', isAuthenticated, (req, res) => {
 
 //edit articles
 router.get('/edit-article/:id', isAuthenticated, (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
+
     const articleId = req.params.id
     const articles = JSON.parse(
         fs.readFileSync(
@@ -708,10 +723,6 @@ router.get('/edit-article/:id', isAuthenticated, (req, res) => {
 //update article
 
 router.post('/update-article/:id', isAuthenticated, (req, res) => {
-    if (!req.session.user) {
-        req.session.originalUrl = req.originalUrl // Store the original URL to redirect after login
-        return res.redirect('/login')
-    }
 
     const articleId = req.params.id
     let articles = JSON.parse(
@@ -752,10 +763,6 @@ router.post('/update-article/:id', isAuthenticated, (req, res) => {
 
 //endpoint
 router.post('/create-article', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
 
     const articles = JSON.parse(
         fs.readFileSync(
@@ -789,13 +796,6 @@ router.post('/create-article', isAuthenticated, (req, res) => {
 
 // display
 router.get('/create-article', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
-
-
-
 
     res.send(`
     <html>
@@ -869,16 +869,10 @@ router.get('/create-article', isAuthenticated, (req, res) => {
     `)
 })
 
-
-
-
 // Share knowledgebase page
 
 router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
+
     // Generate a unique link for the user's knowledgebase using localhost and company name
     const uniqueLink = `http://localhost:3000/knowledgebase/${encodeURIComponent(
         req.session.user.company
@@ -971,10 +965,7 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
     `)
 })
 
-router.post('/share-knowledgebase', (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
+router.post('/share-knowledgebase', isAuthenticated, (req, res) => {
 
     // Here, you can add logic to handle the sharing action, such as sending an email or saving to a database.
 
@@ -991,7 +982,6 @@ router.get('/knowledgebase/:companyName', (req, res) => {
     // Read total page views from JSON file
     const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
     let pageViewsData = {}
-    
 
     try {
         pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'))
@@ -1240,10 +1230,7 @@ router.get('/article/:articleId', (req, res) => {
 })
 
 //settings function
-router.get('/settings', isAuthenticated, (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
+router.get('/settings', isAuthenticated, processPaymentInfo, (req, res) => {
 
     const userHeaderColor = req.session.user.headerColor || '#3273dc'
 
@@ -1364,10 +1351,6 @@ router.get('/settings', isAuthenticated, (req, res) => {
 })
 
 router.post('/update-settings', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
 
     try {
         // Get the new settings from the form submission
@@ -1413,10 +1396,6 @@ router.post('/update-settings', isAuthenticated, (req, res) => {
 })
 
 router.get('/help', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
 
     res.send(`
     <!DOCTYPE html>
@@ -1501,8 +1480,9 @@ router.post('/payment-confirm', (req, res) => {
 
     const user = req.session.user
 
+    // TODO: we should only update this after payment has been made.
     // Update user's subscription status in your user data structure
-    user.paid = true // Assuming you have a property called 'paid' to track subscription status
+    user.isPayingCustomer = true // Assuming you have a property called 'isPayingCustomer' to track subscription status
 
     // Store billing information
 
@@ -1546,29 +1526,20 @@ router.post('/payment-confirm', (req, res) => {
 })
 
 // Billing history page
-router.get('/billing', isAuthenticated, (req, res) => {
-    // Check if the session exists
-    if (!req.session || !req.session.user) {
-        return res.redirect('/login')
-    }
-
+router.get('/billing', isAuthenticated, processPaymentInfo, (req, res) => {
     const user = req.session.user
 
     // Load billing history
 
-    const userBillings = billings.filter(
-        (billing) => billing.user === user.email
-    )
-
     let billingHtml = ''
 
     // TODO: need a better way to handle this (checking when and if a user is on a paid plan).
-    if (user.paid) {
+    if (user.isPayingCustomer && !user.isUserOwingUs) {
         billingHtml = `
             <section class="section">
                 <div class="container">
                     <h2 class="title is-2">Billing Information</h2>
-                    <p>You are on a paid plan. Your subscription started on: ${user.paidDate}</p>
+                    <p>You are on a paid plan. Your last subscription started on: ${user.lastPaymentDate}</p>
                 </div>
             </section>
         `
