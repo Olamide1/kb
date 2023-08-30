@@ -225,265 +225,7 @@ router.post('/login', (req, res) => {
         if (result) {
             req.session.user = user
 
-            // Check if the user is on a paid plan
-
-            /**
-             * Find out if they have payment history.
-             * Get the last date they paid.
-             * Then check if that date is within the current payment cycle,
-             * Or if their subscription has expired, and they need to pay again.
-             *
-             * TODO: maybe even move this whole payment logic to a stand alone service.
-             */
-
-            const userPreviousPayments = billings
-                .filter(
-                    (billing) =>
-                        billing?.user === user.email &&
-                        parseFloat(billing?.amount) > 0
-                )
-                .sort(
-                    // sort date in ascending order...
-                    (a, b) => a.date > b.date
-                )
-
-            let isPayingCustomer = false
-            if (userPreviousPayments.length > 0) {
-                isPayingCustomer = true
-            } else {
-                // TODO: specify if the user has passed trial period or not.
-            }
-
-            // We only need to do this, if they're like new customers/users.
-            // Include billing and trial information
-            const trialDays = 7 // Replace with your trial duration
-            const trialEndDate = new Date()
-            trialEndDate.setDate(trialEndDate.getDate() + trialDays)
-
-            // Calculate next payment due date (30 days from the last payment)
-            const lastPaymentDate = isPayingCustomer
-                ? new Date(
-                      userPreviousPayments[userPreviousPayments.length - 1].date
-                  )
-                : null
-
-            // if lastPaymentDate is less than 30 days (from today), we're good. Else, they're owing us.
-            let isUserOwingUs = false
-            if (
-                lastPaymentDate &&
-                differenceInDays(new Date(), lastPaymentDate) > 30
-            ) {
-                isUserOwingUs = true
-            }
-
-            const nextPaymentDueDate = lastPaymentDate
-                ? new Date(lastPaymentDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-                : null
-
-            /**
-             * TODO: check if they've passed their trial period.
-             * What should we do if they don't pay? Should we have a grace period? If yes, for how long?
-             */
-            // Include billing and trial information.
-            const billingSection = `
-                <section class="section">
-                    <div class="container">
-                        <div class="billing-info">
-                            ${
-                                isPayingCustomer && isUserOwingUs
-                                    ? `
-                                <p>You are on a paid plan. But you're behind payment.</p>
-                                `
-                                    : isPayingCustomer
-                                    ? `
-                                <p>You are on a paid plan. Next payment due on: ${nextPaymentDueDate.toDateString()}</p>
-                                `
-                                    : `
-                                <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
-                                <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
-                                `
-                            }
-                        </div>
-                    </div>
-                </section>
-            `
-            req.session.save((err) => {
-                if (err) {
-                    console.error('Error saving session:', err)
-                    return res.status(500).send('Internal Server Error')
-                }
-
-                const articles = JSON.parse(
-                    fs.readFileSync(
-                        path.join(__dirname, '..', 'data', 'articles.json'),
-                        'utf8'
-                    )
-                )
-                const userArticles = articles.filter(
-                    (article) => article.email === user.email
-                )
-                // Include analytics
-                const totalArticles = userArticles.length
-                let totalCentralViews = 0
-                let totalArticleViews = 0
-
-                userArticles.forEach((article) => {
-                    totalCentralViews += article.centralViews || 0
-                    totalArticleViews += article.articleViews || 0
-                })
-                // Read total page views from JSON file
-                const pageViewsPath = path.join(
-                    __dirname,
-                    '..',
-                    'data',
-                    'page-views.json'
-                )
-                const pageViewsData = JSON.parse(
-                    fs.readFileSync(pageViewsPath, 'utf8')
-                )
-
-                let articlesHtml = userArticles
-                    .map((article) => {
-                        let content = article.content
-                        let seeMore = false
-
-                        if (content.split(' ').length > 500) {
-                            content =
-                                content.split(' ').slice(0, 100).join(' ') +
-                                '...'
-                            seeMore = true
-                        }
-
-                        return `
-                            <div class="box mb-4">
-                                <h3 class="title is-4">${article.title}</h3>
-                                <p>${content}</p>
-                                <div class="buttons">
-                                    ${
-                                        seeMore
-                                            ? '<a href="#" class="button is-link">See More</a>'
-                                            : ''
-                                    }
-                                    <a href="/edit-article/${
-                                        article.id
-                                    }" class="button is-warning">Edit</a>
-                                    <a href="/delete-article/${
-                                        article.id
-                                    }" class="button is-danger">Delete</a>
-                                </div>
-                            </div>
-                        `
-                    })
-                    .join('')
-
-                res.send(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
-                        <style>
-                            /* ... Additional styles ... */
-                        </style>
-                    </head>
-                    <body>
-                        <!-- Navbar -->
-                        <nav class="navbar is-white" role="navigation" aria-label="main navigation">
-                            <div class="navbar-brand">
-                                <a class="navbar-item" href="/dashboard">
-                                    <strong>Yōsei</strong>
-                                </a>
-                                <!-- Mobile Navbar Burger -->
-                                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
-                                    <span aria-hidden="true"></span>
-                                    <span aria-hidden="true"></span>
-                                    <span aria-hidden="true"></span>
-                                </a>
-                            </div>
-                            <div class="navbar-menu">
-                            <div class="navbar-end">
-                                <div class="navbar-item has-dropdown is-hoverable">
-                                    <a class="navbar-link">
-                                        ${req.session.user.company}
-                                    </a>
-                                    <div class="navbar-dropdown">
-                                        <a class="navbar-item" href="/settings">Settings</a>
-                                        <a class="navbar-item" href="/help">Help</a>
-                                        <a class="navbar-item" href="/billing">Billing information</a>
-
-                                        <hr class="navbar-divider">
-                                        <a class="navbar-item" href="/logout">Logout</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        </nav>
-                        <!-- End of Navbar -->
-                        <!-- Existing HTML -->
-                        <section class="section">
-                            <div class="container">
-                                <h1 class="title is-2 mb-6">Welcome, ${
-                                    user.company
-                                }!</h1>
-                                <div class="box mt-6 notion-inspired">
-                                <h3 class="title is-4">Analytics</h3>
-                                <div class="columns">
-                                
-                                    <div class="column">
-                                        <div class="notification">
-                                            <p class="title is-6">Total Articles</p>
-                                            <p class="subtitle">${totalArticles}</p>
-                                        </div>
-                                    </div>
-                                    <div class="column">
-                                        <div class="notification">
-                                            <p class="title is-6">Total Article Views</p>
-                                            <p class="subtitle">${totalArticleViews}</p>
-                                        </div>
-                                    </div>
-                                    
-                
-                                </div>
-                            </div>
-                                <div class="buttons mb-6">
-                                    <a href="/create-article" class="button is-primary">Create New Article</a>
-                                    <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>     
-                                </div>
-                                ${
-                                    articlesHtml ||
-                                    '<p>You have no articles yet. Create one to get started!</p>'
-                                }
-
-                                <!-- Include billing and trial information -->
-                                <script>
-                                document.addEventListener('DOMContentLoaded', () => {
-                                    const billingInfo = document.querySelector('.billing-info');
-                                    const billingHeader = document.createElement('h3');
-                                    billingHeader.className = 'billing-header';
-                                    billingHeader.textContent = 'Billing Information';
-                                    billingHeader.style.cursor = 'pointer';
-                                    billingInfo.parentElement.insertBefore(billingHeader, billingInfo);
-                    
-                                    billingHeader.addEventListener('click', () => {
-                                        billingInfo.classList.toggle('hidden');
-                                    });
-                                });
-                            </script>
-                    
-                            ${billingSection}
-                                    </div>
-                                </section>
-                                <!-- End of billing and trial information -->
-                            </div>
-                        </section>
-                        <!-- End of Existing HTML -->
-                        <!-- Additional scripts -->
-                        <script>
-                            /* ... Additional scripts ... */
-                        </script>
-                    </body>
-                    </html>
-                `)
-            })
+            return res.redirect('/dashboard')
         } else {
             res.send(`
                 <!DOCTYPE html>
@@ -513,11 +255,19 @@ router.post('/login', (req, res) => {
                             <a href="/login" class="button is-primary">Try Again</a>
                         </div>
                     </section>
-                    <!-- End of Existing HTML -->
-                    <!-- Additional scripts -->
+
                     <script>
-                        /* ... Additional scripts ... */
-                    </script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const navbarBurger = document.querySelector('.navbar-burger');
+        const navbarMenu = document.querySelector('.navbar-menu');
+
+        navbarBurger.addEventListener('click', () => {
+            navbarBurger.classList.toggle('is-active');
+            navbarMenu.classList.toggle('is-active');
+        });
+    });
+</script>
+        
                 </body>
                 </html>
             `)
@@ -657,6 +407,14 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
     <html>
     <head>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+        <script type="text/javascript">
+                (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
+                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                </script>
+                <script>
+                // Initialize Mixpanel with your project token
+                mixpanel.init("772a4e12b080a5702ceb6b7f5fdd0cb2");
+            </script>
         <style>
             .is-primary {
                 background-color: #6366F1;
@@ -761,7 +519,7 @@ router.get('/dashboard', isAuthenticated, (req, res) => {
                 </div>
             </div>
                 <div class="buttons mb-6">
-                    <a href="/create-article" class="button is-primary">Create New Article</a>
+                    <a href="/create-article" class="button is-primary" onclick="mixpanel.track("Create New Article | Dashboard')">Create New Article</a>
                     <a href="/share-knowledgebase" class="button is-link">Share Yōsei</a>
                 </div>
                 ${
@@ -1043,6 +801,14 @@ router.get('/create-article', isAuthenticated, (req, res) => {
     <html>
     <head>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+        <script type="text/javascript">
+                (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
+                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                </script>
+                <script>
+                // Initialize Mixpanel with your project token
+                mixpanel.init("772a4e12b080a5702ceb6b7f5fdd0cb2");
+            </script>
         <style>
             body {
                 background-color: #f4f5f7;
@@ -1082,7 +848,7 @@ router.get('/create-article', isAuthenticated, (req, res) => {
                         </div>
                         <div class="field is-grouped">
                             <div class="control">
-                                <button type="submit" class="button is-primary">Create Article</button>
+                                <button type="submit" class="button is-primary" onclick="trackCreateClick()">Create Article</button>
                             </div>
                             <div class="control">
                                 <a href="/dashboard" class="button is-light">Back to Dashboard</a>
@@ -1092,6 +858,12 @@ router.get('/create-article', isAuthenticated, (req, res) => {
                 </div>
             </div>
         </section>
+
+        <script>
+        function trackCreateClick() {
+            mixpanel.track("New Article Created");
+        }
+        </script>
     </body>
     </html>
     `)
@@ -1116,6 +888,14 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
     <html>
         <head>
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+            <script type="text/javascript">
+            (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
+            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+            </script>
+        <script>
+            // Initialize Mixpanel with your project token
+            mixpanel.init("772a4e12b080a5702ceb6b7f5fdd0cb2");
+        </script>
             <style>
                 .is-primary {
                     background-color: #6366F1;
@@ -1165,16 +945,22 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
                             <input type="text" value="${uniqueLink}" class="input" readonly>
                         </div>
                         <div class="control">
-                            <button onclick="copyLink()" class="button is-primary">Copy Link</button>
+                            <button onclick="copyLink()" class="button is-primary" >Copy Link</button>
                         </div>
                     </div>
                     <p>Customize the look and feel of your Yōsei page to match your company's brand.</p>
                     <a href="/settings" class="button is-link mt-4">Choose a Theme</a>
+                    <a href="/dashboard" class="button is-light mt-4">Back to Dashboard</a>
+
                     <script>
                         function copyLink() {
                             const input = document.querySelector('input');
                             input.select();
                             document.execCommand('copy');
+                            recordShare()
+                        }
+                        function recordShare(){
+                            mixpanel.track("Shared Knowledge Base");
                         }
                     </script>
                 </div>
