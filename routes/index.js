@@ -13,13 +13,18 @@ const addDays = require('date-fns/addDays')
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
 
-const usersFilePath = path.join(__dirname, '..', 'data', 'users.json')
-const articlesFilePath = path.join(__dirname, '..', 'data', 'articles.json')
+// Putting here so we only have to do this once.
+const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
+const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8')) // returns an array.
 
 const THIRTY_DAYS = 30
 
+// TODO: once we start the server, and this is loaded the first time, would it be updating as new users join?
 // Load the JSON data using the paths
+const usersFilePath = path.join(__dirname, '..', 'data', 'users.json')
 const users = require(usersFilePath)
+
+const articlesFilePath = path.join(__dirname, '..', 'data', 'articles.json')
 const articles = require(articlesFilePath)
 
 app.use(
@@ -109,10 +114,6 @@ const colorOptions = [
 
 const saltRounds = 10
 
-// Putting here so we only have to do this once.
-const billingsPath = path.join(__dirname, '..', 'data', 'billings.json')
-const billings = JSON.parse(fs.readFileSync(billingsPath, 'utf8')) // returns an array.
-
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')))
 
@@ -135,13 +136,8 @@ router.get('/pricing', (req, res) => {
 router.post('/register', (req, res) => {
     const { email, password, company } = req.body
 
-    // Check if email or company already exist
-    const users = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'users.json'),
-            'utf8'
-        )
-    )
+    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
+
     const existingUser = users.find(
         (user) => user.email === email || user.company === company
     )
@@ -177,10 +173,7 @@ router.post('/register', (req, res) => {
         const newUser = { email, password: hashedPassword, company }
         users.push(newUser)
 
-        fs.writeFileSync(
-            path.join(__dirname, '..', 'data', 'users.json'),
-            JSON.stringify(users)
-        )
+        fs.writeFileSync(usersFilePath, JSON.stringify(users))
 
         // Include billing and trial information
         const trialDays = 7 // Replace with your trial duration
@@ -222,13 +215,7 @@ router.get('/login', (req, res) => {
 router.post('/login', (req, res) => {
     const { email, password } = req.body
 
-    // TODO: should ideally be async.
-    const users = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'users.json'),
-            'utf8'
-        )
-    )
+    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
     const user = users.find((u) => u.email === email)
 
     if (!user) {
@@ -335,12 +322,7 @@ router.post('/login', (req, res) => {
 router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
     const user = req.session.user // const, right?
 
-    const articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
+    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
     const userArticles = articles.filter(
         (article) => article.email === req.session.user.email
     )
@@ -395,7 +377,7 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
     /**
      * TODO: Trial should be 7 days after the user registered???
      * It should be 7 days after date of registration.
-     * 
+     *
      * So how do we know when a user registered??
      */
     // Include billing and trial information
@@ -415,10 +397,10 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
                     `
                         : user.isPayingCustomer
                         ? `
-                    <p>You are on a paid plan. Next payment due on: ${user.nextPaymentDueDate.toDateString()}</p>
+                    <p>You are on a paid plan. Next payment due on <b>${user.nextPaymentDueDate.toDateString()}</b></p>
                     `
                         : `
-                    <p>Your free trial ends on: ${trialEndDate.toDateString()}</p>
+                    <p>Your free trial ends on <b>${trialEndDate.toDateString()}</b></p>
                     <a href="/payment" class="button is-primary">Upgrade to Paid Plan</a>
                     `
                 }
@@ -604,14 +586,8 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
 
 // edit and delete
 router.get('/delete-article/:id', isAuthenticated, (req, res) => {
-
     const articleId = req.params.id
-    const articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
+    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
     const article = articles.find((article) => article.id === articleId)
 
     if (!article) {
@@ -639,35 +615,20 @@ router.get('/delete-article/:id', isAuthenticated, (req, res) => {
 })
 
 router.get('/confirm-delete/:id', isAuthenticated, (req, res) => {
-
     const articleId = req.params.id
-    let articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
+    let articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
 
     articles = articles.filter((article) => article.id !== articleId)
 
-    fs.writeFileSync(
-        path.join(__dirname, '..', 'data', 'articles.json'),
-        JSON.stringify(articles, null, 4)
-    )
+    fs.writeFileSync(articlesFilePath, JSON.stringify(articles, null, 4))
 
     res.redirect('/dashboard')
 })
 
 //edit articles
 router.get('/edit-article/:id', isAuthenticated, (req, res) => {
-
     const articleId = req.params.id
-    const articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
+    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
     const article = articles.find((article) => article.id === articleId)
 
     if (!article) {
@@ -723,14 +684,8 @@ router.get('/edit-article/:id', isAuthenticated, (req, res) => {
 //update article
 
 router.post('/update-article/:id', isAuthenticated, (req, res) => {
-
     const articleId = req.params.id
-    let articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
+    let articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
     const articleIndex = articles.findIndex(
         (article) => article.id === articleId
     )
@@ -744,10 +699,7 @@ router.post('/update-article/:id', isAuthenticated, (req, res) => {
     articles[articleIndex].content = req.body.content
 
     // Save the updated articles data
-    fs.writeFileSync(
-        path.join(__dirname, '..', 'data', 'articles.json'),
-        JSON.stringify(articles, null, 4)
-    )
+    fs.writeFileSync(articlesFilePath, JSON.stringify(articles, null, 4))
 
     // Explicitly save the session
     req.session.save((err) => {
@@ -763,13 +715,7 @@ router.post('/update-article/:id', isAuthenticated, (req, res) => {
 
 //endpoint
 router.post('/create-article', isAuthenticated, (req, res) => {
-
-    const articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
+    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
 
     // Create a new article with a unique ID
     const newArticle = {
@@ -784,10 +730,7 @@ router.post('/create-article', isAuthenticated, (req, res) => {
     articles.push(newArticle)
 
     // Save the updated articles data
-    fs.writeFileSync(
-        path.join(__dirname, '..', 'data', 'articles.json'),
-        JSON.stringify(articles, null, 4)
-    )
+    fs.writeFileSync(articlesFilePath, JSON.stringify(articles, null, 4))
 
     // Redirect back to the dashboard with a success message
     req.session.message = 'Article created successfully!'
@@ -796,7 +739,6 @@ router.post('/create-article', isAuthenticated, (req, res) => {
 
 // display
 router.get('/create-article', isAuthenticated, (req, res) => {
-
     res.send(`
     <html>
     <head>
@@ -872,7 +814,6 @@ router.get('/create-article', isAuthenticated, (req, res) => {
 // Share knowledgebase page
 
 router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
-
     // Generate a unique link for the user's knowledgebase using localhost and company name
     const uniqueLink = `http://localhost:3000/knowledgebase/${encodeURIComponent(
         req.session.user.company
@@ -966,7 +907,6 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
 })
 
 router.post('/share-knowledgebase', isAuthenticated, (req, res) => {
-
     // Here, you can add logic to handle the sharing action, such as sending an email or saving to a database.
 
     // For now, we'll just redirect back to the dashboard with a message.
@@ -1002,18 +942,8 @@ router.get('/knowledgebase/:companyName', (req, res) => {
 
     const searchQuery = req.query.search || ''
 
-    const articles = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'articles.json'),
-            'utf8'
-        )
-    )
-    const users = JSON.parse(
-        fs.readFileSync(
-            path.join(__dirname, '..', 'data', 'users.json'),
-            'utf8'
-        )
-    )
+    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
+    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
 
     const user = users.find((user) => user.company === companyName)
 
@@ -1148,11 +1078,8 @@ router.get('/knowledgebase/:companyName', (req, res) => {
 router.get('/article/:articleId', (req, res) => {
     const articleId = req.params.articleId
 
-    const articlesPath = path.join(__dirname, '..', 'data', 'articles.json')
-    const usersPath = path.join(__dirname, '..', 'data', 'users.json')
-
-    const articles = JSON.parse(fs.readFileSync(articlesPath, 'utf8'))
-    const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'))
+    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
+    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
 
     const article = articles.find((a) => a.id === articleId)
 
@@ -1171,7 +1098,7 @@ router.get('/article/:articleId', (req, res) => {
         a.id === articleId ? article : a
     )
     fs.writeFileSync(
-        articlesPath,
+        articlesFilePath,
         JSON.stringify(updatedArticles, null, 2),
         'utf8'
     )
@@ -1231,7 +1158,6 @@ router.get('/article/:articleId', (req, res) => {
 
 //settings function
 router.get('/settings', isAuthenticated, processPaymentInfo, (req, res) => {
-
     const userHeaderColor = req.session.user.headerColor || '#3273dc'
 
     let successMessage = ''
@@ -1351,18 +1277,12 @@ router.get('/settings', isAuthenticated, processPaymentInfo, (req, res) => {
 })
 
 router.post('/update-settings', isAuthenticated, (req, res) => {
-
     try {
         // Get the new settings from the form submission
         const { email, role, country, headerColor } = req.body
 
         // Load the users data
-        const users = JSON.parse(
-            fs.readFileSync(
-                path.join(__dirname, '..', 'data', 'users.json'),
-                'utf8'
-            )
-        )
+        const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
 
         // Find the current user and update their settings
         const userIndex = users.findIndex(
@@ -1375,10 +1295,7 @@ router.post('/update-settings', isAuthenticated, (req, res) => {
             if (headerColor) users[userIndex].headerColor = headerColor
 
             // Save the updated users data
-            fs.writeFileSync(
-                path.join(__dirname, '..', 'data', 'users.json'),
-                JSON.stringify(users, null, 4)
-            )
+            fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 4))
 
             // Update the session data
             req.session.user = users[userIndex]
@@ -1396,7 +1313,6 @@ router.post('/update-settings', isAuthenticated, (req, res) => {
 })
 
 router.get('/help', isAuthenticated, (req, res) => {
-
     res.send(`
     <!DOCTYPE html>
     <html>
@@ -1539,7 +1455,7 @@ router.get('/billing', isAuthenticated, processPaymentInfo, (req, res) => {
             <section class="section">
                 <div class="container">
                     <h2 class="title is-2">Billing Information</h2>
-                    <p>You are on a paid plan. Your last subscription started on: ${user.lastPaymentDate}</p>
+                    <p>You are on a paid plan. Your last subscription started on <b>${user.lastPaymentDate}</b></p>
                 </div>
             </section>
         `
@@ -1548,9 +1464,9 @@ router.get('/billing', isAuthenticated, processPaymentInfo, (req, res) => {
             <section class="section">
                 <div class="container">
                     <h2 class="title is-2">Billing Information</h2>
-                    <p>Your trial period ends on: ${new Date(
+                    <p>Your trial period ends on <b>${new Date(
                         user.trialEnd
-                    ).toLocaleDateString()}</p>
+                    ).toLocaleDateString()}</b></p>
                 </div>
             </section>
         `
