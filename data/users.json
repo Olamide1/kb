@@ -8,7 +8,8 @@
     {
         "email": "chuks@tenner.com",
         "password": "$2b$10$hJCtfkFxccHp7yYb2wVfrOyDUKrz6PmSNeXVtXIAst2JcJtxjylWu",
-        "company": "Chuks Tenner"
+        "company": "Chuks Tenner",
+        "headerColor": "#ffdd57"
     },
     {
         "email": "oakomolafe@gmail.com",
