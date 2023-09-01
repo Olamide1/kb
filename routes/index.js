@@ -122,6 +122,10 @@ router.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'views', 'layout.html'))
 })
 
+router.get('/roadmap', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'views', 'roadmap.html' ))
+})
+
 // GET route for the registration page
 router.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'views', 'register.html'))
