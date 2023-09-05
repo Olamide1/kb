@@ -14,7 +14,8 @@
     {
         "email": "oakomolafe@gmail.com",
         "password": "$2b$10$l3003bps2wjjtYNjKg/Q1us4YfrZ2bS5QSzyi1oXX1AIe1DESvOOq",
-        "company": "Paper Place"
+        "company": "Paper Place",
+        "headerColor": "#9d65c9"
     },
     {
         "email": "ola@gmail.com",
