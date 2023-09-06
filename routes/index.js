@@ -1,3 +1,5 @@
+require('dotenv').config()
+
 const express = require('express')
 const fs = require('fs')
 const bcrypt = require('bcrypt')
@@ -9,6 +11,18 @@ const session = require('express-session')
 const bodyParser = require('body-parser')
 const differenceInDays = require('date-fns/differenceInDays')
 const addDays = require('date-fns/addDays')
+
+const axios = require('axios')
+
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2022-08-01',
+    appInfo: {
+        // For sample support and debugging, not required for production:
+        name: 'stripe-checkout-test-v1',
+        version: '0.0.1',
+        url: 'https://github.com/Olamide1/kb',
+    },
+})
 
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
@@ -26,6 +40,9 @@ const users = require(usersFilePath)
 
 const articlesFilePath = path.join(__dirname, '..', 'data', 'articles.json')
 const articles = require(articlesFilePath)
+
+// Read total page views from JSON file
+const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
 
 app.use(
     session({
@@ -123,7 +140,7 @@ router.get('/', (req, res) => {
 })
 
 router.get('/roadmap', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'views', 'roadmap.html' ))
+    res.sendFile(path.join(__dirname, '..', 'views', 'roadmap.html'))
 })
 
 // GET route for the registration page
@@ -137,7 +154,7 @@ router.get('/pricing', (req, res) => {
 })
 
 // POST route for registration
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
     const { email, password, company } = req.body
 
     const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
@@ -154,7 +171,7 @@ router.post('/register', (req, res) => {
                     <title>Registration Error</title>
                     <script type="text/javascript">
                         (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
                     </script>
                     <script>
                         // Initialize Mixpanel with your project token
@@ -177,12 +194,23 @@ router.post('/register', (req, res) => {
         `)
     }
 
-    bcrypt.hash(password, saltRounds, (err, hashedPassword) => {
+    bcrypt.hash(password, saltRounds, async (err, hashedPassword) => {
         if (err) {
             return res.status(500).send('Error hashing password.')
         }
 
         const newUser = { email, password: hashedPassword, company }
+        // Create customer on Stripe. Email addresses do NOT uniquely identify
+        // customers in Stripe.
+
+        // Create a customer. This will also set a cookie on the server
+        // to simulate having a logged in user.
+        // Create a new customer object (if this is the first time they're registering with us)
+        const customer = await stripe.customers.create({
+            email: req.body.email,
+        })
+
+        newUser.stripeCustomerId = customer.id
         users.push(newUser)
 
         fs.writeFileSync(usersFilePath, JSON.stringify(users))
@@ -200,7 +228,7 @@ router.post('/register', (req, res) => {
                     <title>Registration Success</title>
                     <script type="text/javascript">
                         (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
                     </script>
                     <script>
                         // Initialize Mixpanel with your project token
@@ -249,7 +277,7 @@ router.post('/login', (req, res) => {
                 </style>
                 <script type="text/javascript">
                     (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                    for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                    for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
                 </script>
                 <script>
                     // Initialize Mixpanel with your project token
@@ -289,12 +317,37 @@ router.post('/login', (req, res) => {
         `)
     }
 
-    bcrypt.compare(password, user.password, (err, result) => {
+    bcrypt.compare(password, user.password, async (err, result) => {
         if (err) {
             return res.status(500).send('Error verifying password.')
         }
 
         if (result) {
+            if (!user.stripeCustomerId) {
+                // Create customer on Stripe. Email addresses do NOT uniquely identify
+                // customers in Stripe.
+
+                // Create a customer. This will also set a cookie on the server
+                // to simulate having a logged in user.
+                // Create a new customer object (if this is the first time they're registering with us)
+                const customer = await stripe.customers.create({
+                    email: req.body.email,
+                })
+
+                user.stripeCustomerId = customer.id
+
+                // update the user details.
+                const updatedUsers = users.map((val) => {
+                    return val?.email == email ? user : val
+                })
+
+                // TODO: Save to DB
+                fs.writeFileSync(
+                    usersFilePath,
+                    JSON.stringify(updatedUsers, null, 4)
+                )
+            }
+
             req.session.user = user
 
             return res.redirect('/dashboard')
@@ -309,7 +362,7 @@ router.post('/login', (req, res) => {
                     </style>
                     <script type="text/javascript">
                         (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
                     </script>
                     <script>
                         // Initialize Mixpanel with your project token
@@ -373,8 +426,7 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
         totalArticleViews += article.articleViews || 0
     })
 
-    // Read total page views from JSON file
-    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
+    // TODO: seems this isn't being used. why do we need it?
     const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'))
 
     let articlesHtml = userArticles
@@ -452,7 +504,7 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
         <script type="text/javascript">
             (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
         </script>
         <script>
             // Initialize Mixpanel with your project token
@@ -525,6 +577,9 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
                             <a class="navbar-item" href="/settings">Settings</a>
                             <a class="navbar-item" href="/help">Help</a>
                             <a class="navbar-item" href="/billing">Billing information</a>
+
+                            <hr class="navbar-divider">
+                            <a class="navbar-item" href="/payment">Payment</a>
 
                             <hr class="navbar-divider">
                             <a class="navbar-item" href="/logout">Logout</a>
@@ -636,7 +691,7 @@ router.get('/delete-article/:id', isAuthenticated, (req, res) => {
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
             <script type="text/javascript">
                 (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
             </script>
             <script>
                 // Initialize Mixpanel with your project token
@@ -693,7 +748,7 @@ router.get('/edit-article/:id', isAuthenticated, (req, res) => {
             </style>
             <script type="text/javascript">
                 (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
             </script>
             <script>
                 // Initialize Mixpanel with your project token
@@ -797,7 +852,7 @@ router.get('/create-article', isAuthenticated, (req, res) => {
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
         <script type="text/javascript">
             (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
         </script>
         <script>
             // Initialize Mixpanel with your project token
@@ -877,7 +932,7 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
             <script type="text/javascript">
                 (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
             </script>
             <script>
                 // Initialize Mixpanel with your project token
@@ -967,12 +1022,11 @@ router.post('/share-knowledgebase', isAuthenticated, (req, res) => {
     res.redirect('/dashboard')
 })
 
+// TODO: How are we gonna work on access to the KB?
 // Knowledgebase page
 router.get('/knowledgebase/:companyName', (req, res) => {
     const companyName = req.params.companyName
 
-    // Read total page views from JSON file
-    const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
     let pageViewsData = {}
 
     try {
@@ -1085,7 +1139,7 @@ router.get('/knowledgebase/:companyName', (req, res) => {
     </style>
     <script type="text/javascript">
         (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
     </script>
     <script>
         // Initialize Mixpanel with your project token
@@ -1134,6 +1188,7 @@ router.get('/knowledgebase/:companyName', (req, res) => {
     `)
 })
 
+// TODO: Who can have access to articles??
 // individual articles
 router.get('/article/:articleId', (req, res) => {
     const articleId = req.params.articleId
@@ -1198,7 +1253,7 @@ router.get('/article/:articleId', (req, res) => {
             </style>
             <script type="text/javascript">
                 (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
             </script>
             <script>
                 // Initialize Mixpanel with your project token
@@ -1261,7 +1316,7 @@ router.get('/settings', isAuthenticated, processPaymentInfo, (req, res) => {
                 </style>
                 <script type="text/javascript">
                     (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-                    for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                    for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
                 </script>
                 <script>
                     // Initialize Mixpanel with your project token
@@ -1414,7 +1469,7 @@ router.get('/help', isAuthenticated, (req, res) => {
         </style>
         <script type="text/javascript">
             (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
         </script>
         <script>
             // Initialize Mixpanel with your project token
@@ -1453,53 +1508,169 @@ router.get('/help', isAuthenticated, (req, res) => {
 })
 
 // Payment page
-router.get('/payment', (req, res) => {
+router.get('/payment', isAuthenticated, (req, res) => {
     res.send(`
+
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://js.stripe.com/v3/"></script>
+    </head>
+    <body>
         <!-- ... existing HTML ... -->
 
         <!-- Payment Form (Stripe Integration) -->
         <section class="section">
             <div class="container">
                 <h2 class="title is-2">Payment Details</h2>
+                <!-- Old Payment Form -->
+
+                <!-- Add Stripe elements here -->
+                <!-- Card number, expiration date, CVC, etc. -->
+                <!-- Replace with your actual Stripe integration code -->
+                <!--
                 <form action="/payment-confirm" method="post">
-                    <!-- Add Stripe elements here -->
-                    <!-- Card number, expiration date, CVC, etc. -->
-                    <!-- Replace with your actual Stripe integration code -->
                     <button class="button is-primary" type="submit">Proceed to Payment</button>
+                </form>
+                -->
+
+                <!-- // Old Payment Form -->
+
+                <!-- Stripe Test Card Details -->
+
+                <p>
+                    Try the successful test card: <span>4242424242424242</span>.
+                </p>
+
+                <p>
+                    Try the test card that requires SCA: <span>4000002500003155</span>.
+                </p>
+
+                <p>
+                    Use any <i>future</i> expiry date, CVC, and 5 digit postal code.
+                </p>
+
+                <!-- // Stripe Test Card Details -->
+
+                <form id="subscribe-form">
+                    <label>
+                    Full name
+                    <input type="text" id="name" value="Jenny Rosen" />
+                    </label>
+
+                    <div id="card-element">
+                    <!-- the card element will be mounted here -->
+                    </div>
+
+                    <button type="submit">
+                    Subscribe
+                    </button>
+
+                    <div id="messages"></div>
                 </form>
             </div>
         </section>
 
         <!-- ... existing HTML ... -->
+
+        <script>
+        // helper method for displaying a status message.
+        const setMessage = (message) => {
+          const messageDiv = document.querySelector('#messages');
+          messageDiv.innerHTML += "<br>" + message;
+        }
+        
+        // Fetch public key and initialize Stripe.
+        let stripe, cardElement;
+        
+        fetch('/config')
+          .then((resp) => resp.json())
+          .then((resp) => {
+            stripe = Stripe(resp.publishableKey);
+        
+            const elements = stripe.elements();
+            cardElement = elements.create('card');
+            cardElement.mount('#card-element');
+          });
+        
+        // Extract the client secret query string argument. This is
+        // required to confirm the payment intent from the front-end.
+        const subscriptionId = window.sessionStorage.getItem('subscriptionId');
+        const clientSecret = window.sessionStorage.getItem('clientSecret');
+        // This sample only supports a Subscription with payment
+        // upfront. If you offer a trial on your subscription, then
+        // instead of confirming the subscription's latest_invoice's
+        // payment_intent. You'll use stripe.confirmCardSetup to confirm
+        // the subscription's pending_setup_intent.
+        // See https://stripe.com/docs/billing/subscriptions/trials
+        
+        // Payment info collection and confirmation
+        // When the submit button is pressed, attempt to confirm the payment intent
+        // with the information input into the card element form.
+        // - handle payment errors by displaying an alert. The customer can update
+        //   the payment information and try again
+        // - Stripe Elements automatically handles next actions like 3DSecure that are required for SCA
+        // - Complete the subscription flow when the payment succeeds
+        const form = document.querySelector('#subscribe-form');
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const nameInput = document.getElementById('name');
+        
+          // Create payment method and confirm payment intent.
+          stripe.confirmCardPayment(clientSecret, {
+            payment_method: {
+              card: cardElement,
+              billing_details: {
+                name: nameInput.value,
+              },
+            }
+          }).then((result) => {
+            if(result.error) {
+              setMessage('Payment failed:' + result?.error?.message);
+            } else {
+              // Redirect the customer to their account page
+              // TODO: There should be a delay before redirecting...
+              setMessage('Success! Redirecting to your account.');
+              window.location.href = '/billing';
+            }
+          });
+        });
+        </script>
+
+
+    </body>
+    </html>
+
+ 
     `)
 })
 
 // Payment confirmation page
-router.post('/payment-confirm', (req, res) => {
+router.get('/payment-confirm', isAuthenticated, (req, res) => {
     // ... Handle payment confirmation and subscription update ...
 
     const user = req.session.user
 
     // TODO: we should only update this after payment has been made.
     // Update user's subscription status in your user data structure
-    user.isPayingCustomer = true // Assuming you have a property called 'isPayingCustomer' to track subscription status
+    // user.isPayingCustomer = true // Assuming you have a property called 'isPayingCustomer' to track subscription status
 
     // Store billing information
+    // const newBilling = {
+    //     user: user.email,
+    //     date: new Date(),
+    //     amount: 10,
+    // }
 
-    const newBilling = {
-        user: user.email,
-        date: new Date(),
-        amount: 10,
-    }
-
-    billings.push(newBilling)
-    fs.writeFileSync(billingsPath, JSON.stringify(billings, null, 2), 'utf8')
+    // billings.push(newBilling)
+    // fs.writeFileSync(billingsPath, JSON.stringify(billings, null, 2), 'utf8')
 
     // Add the subscription date to user's paidDates array
     if (!user.paidDates) {
         user.paidDates = []
     }
-    user.paidDates.push(newBilling.date.toISOString())
+    // user.paidDates.push(newBilling.date.toISOString())
 
     req.session.user = user
     req.session.save((err) => {
@@ -1509,113 +1680,292 @@ router.post('/payment-confirm', (req, res) => {
         }
 
         res.send(`
+        <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Payment Confirmation</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <script src="https://js.stripe.com/v3/"></script>
+            </head>
+            <body>
             <!-- ... existing HTML ... -->
 
-            <!-- Payment Confirmation -->
-            <section class="section">
-            <div class="container">
-            <h2 class="title is-2">Payment Successful</h2>
-            <p>Your payment was successful! You are now on a paid plan.</p>
-            <a href="/dashboard" class="button is-primary">Go to Dashboard</a>
-        </div>
-            </section>
+
+
+            
 
             <!-- ... existing HTML ... -->
+
+
+            </body>
+            </html>
         `)
     })
 })
 
 // Billing history page
-router.get('/billing', isAuthenticated, processPaymentInfo, (req, res) => {
-    const user = req.session.user
+router.get(
+    '/billing',
+    isAuthenticated,
+    processPaymentInfo,
+    async (req, res) => {
+        const user = req.session.user
 
-    // Load billing history
+        /**
+         * Use this to display details about the prices from Strip
+         *
+         * TODO: use .description and .features later on.
+         * Also check if Tailwind if it has pricing designs to use.
+         */
+        let pricesHtml = ''
+        if (true || !user.isPayingCustomer) {
+            // TODO: remove hardcoded boolean value.
 
-    let billingHtml = ''
+            const prices = await stripe.prices.list({
+                // lookup_keys: ['sample_basic', 'sample_premium'],
+                expand: ['data.product'],
+            })
 
-    // TODO: need a better way to handle this (checking when and if a user is on a paid plan).
-    if (user.isPayingCustomer && !user.isUserOwingUs) {
-        billingHtml = `
-            <section class="section">
-                <div class="container">
-                    <h2 class="title is-2">Billing Information</h2>
-                    <p>You are on a paid plan. Your last subscription started on <b>${user.lastPaymentDate}</b></p>
-                </div>
-            </section>
-        `
-    } else if (user.trialEnd && new Date(user.trialEnd) > new Date()) {
-        billingHtml = `
-            <section class="section">
-                <div class="container">
-                    <h2 class="title is-2">Billing Information</h2>
-                    <p>Your trial period ends on <b>${new Date(
-                        user.trialEnd
-                    ).toLocaleDateString()}</b></p>
-                </div>
-            </section>
-        `
-    } else {
-        billingHtml = `
-            <section class="section">
-                <div class="container">
-                    <h2 class="title is-2">Billing Information</h2>
-                    <p>You do not have an active subscription. Please proceed to payment to subscribe.</p>
-                    <a href="/payment" class="button is-primary">Proceed to Payment</a>
-                </div>
-            </section>
-        `
+            // console.log('price data from stripe', prices.data)
+
+            prices.data
+                .filter((price) => price.active === true)
+                .forEach((price) => {
+                    pricesHtml += `
+                  <div>
+                    <span>
+                      ${price.product?.name} - ${price.unit_amount / 100} /
+                      ${price.currency} /
+                      ${price.recurring?.interval}
+                    </span>
+                    <button onclick="createSubscription('${
+                        price.id
+                    }')">Purchase</button>
+                  </div>
+                `
+                })
+
+            // Use prices.data
+        }
+
+        // Load billing history
+
+        let billingHtml = ''
+
+        // TODO: need a better way to handle this (checking when and if a user is on a paid plan).
+        if (user.isPayingCustomer && !user.isUserOwingUs) {
+            billingHtml = `
+                <h2 class="title is-2">Billing Information</h2>
+                <p>You are on a paid plan. Your last subscription started on <b>${user.lastPaymentDate}</b></p>
+            `
+        } else if (user.trialEnd && new Date(user.trialEnd) > new Date()) {
+            billingHtml = `
+                <h2 class="title is-2">Billing Information</h2>
+                <p>Your trial period ends on <b>${new Date(
+                    user.trialEnd
+                ).toLocaleDateString()}</b></p>
+            `
+        } else {
+            billingHtml = `
+                <h2 class="title is-2">Billing Information</h2>
+                <p>You do not have an active subscription. Please proceed to payment to subscribe.</p>
+                <a href="/payment" class="button is-primary">Proceed to Payment</a>
+            `
+        }
+
+        res.send(`
+            <html>
+                <head>
+                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+                    <style>
+                        body {
+                            background-color: #f4f5f7;
+                        }
+                        .notion-inspired {
+                            border: 1px solid #e1e4e8;
+                            border-radius: 8px;
+                            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                            background-color: #ffffff;
+                            padding: 2rem;
+                        }
+                        .is-primary {
+                            background-color: #6366F1;
+                        }
+                        .is-primary:hover {
+                            background-color: #4F46E5;
+                        }
+                    </style>
+                    <script type="text/javascript">
+                        (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
+                        for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\\/\\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
+                    </script>
+                    <script>
+                        // Initialize Mixpanel with your project token
+                        mixpanel.init("772a4e12b080a5702ceb6b7f5fdd0cb2", { track_pageview: true });
+                    </script>
+                </head>
+                <!-- ... existing HTML ... -->
+
+                <!-- Billing Information -->
+                <section class="section">
+                    <div class="container">
+                        ${billingHtml}
+                    </div>
+                </section>
+
+                <div id="messages"></div>
+
+                <!-- Active Subscriptions -->
+                <section class="section">
+                    <div class="container">
+
+                        <h2>Subscriptions</h2>
+    
+                        <div id="subscriptions">
+                            <!-- search for the js code using the #subscriptions ... to see how this div is populated -->
+                        </div>
+                        
+                        <a href="/dashboard" class="button is-primary">Go to Dashboard</a>
+                    </div>
+                </section>
+    
+                <!-- // Active Subscriptions -->
+
+                <!-- Pricing section -->
+                <section class="section">
+                    <div class="container">
+                        ${pricesHtml}
+                    </div>
+                </section>
+
+                <!-- Back to Dashboard Button -->
+                <section class="section">
+                    <div class="container">
+                        <a href="/dashboard" class="button is-light">Back to Dashboard</a>
+                    </div>
+                </section>
+
+                <!-- Additional scripts -->
+                <script>
+                // helper method for displaying a status message.
+                const setMessage = (message) => {
+                const messageDiv = document.querySelector('#messages');
+                messageDiv.innerHTML += "<br>" + message;
+                }
+                </script>
+                <script>
+                    /* ... Additional scripts ... */
+
+                    const createSubscription = (priceId) => {
+                        return fetch('/create-subscription', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            priceId: priceId,
+                          }),
+                        })
+                          .then((response) => response.json())
+                          .then((data) => {
+                            window.sessionStorage.setItem('subscriptionId', data.subscriptionId);
+                            window.sessionStorage.setItem('clientSecret', data.clientSecret);
+                            window.location.href = '/payment';
+                          })
+                          .catch((error) => {
+                            console.error('Error:', error);
+                          });
+                      }
+                </script>
+
+
+                <script>
+
+                const fetchCustomerSubscriptions = async () => {
+                    // Fetch the list of subscriptions for this customer.
+                    const {subscriptions} = await fetch('/subscriptions').then((r) => r.json());
+                  
+                    // Construct and display each subscription, its status, last4 of the card
+                    // used, and the current period end.
+                    const subscriptionsDiv = document.querySelector('#subscriptions');
+                    subscriptionsDiv.innerHTML = subscriptions.data.map((subscription) => {
+                        console.log('subscription', subscription)
+                      let last4 = subscription.default_payment_method?.card?.last4 || '';
+                      return \`
+                        <hr>
+                        <h4>
+                          <a href="https://dashboard.stripe.com/test/subscriptions/\${subscription.id}">
+                            \${subscription.id}
+                          </a>
+                        </h4>
+                  
+                        <p>
+                          Status: \${subscription.status}
+                        </p>
+                  
+                        <p>
+                          Card last4: \${last4}
+                        </p>
+                        <small>If the last4 is blank, ensure webhooks are being handled. The default payment method is set in the webhook handler.</small>
+                  
+                        <p>
+                          Current period end: \${new Date(subscription.current_period_end * 1000)}
+                        </p>
+                  
+                        <!--<a href="change-payment-method.html?subscription=\${subscription.id}"> Update payment method </a><br />
+                        <a href="change-plan.html?subscription=\${subscription.id}"> Change plan </a><br /> -->
+                        <button onclick="cancelSubscription('\${subscription.id}')"> Cancel </button><br />
+                      \`;
+                    }).join('<br />');
+                  }
+                document.addEventListener('DOMContentLoaded', fetchCustomerSubscriptions);
+                </script>
+
+
+                <script>
+                // To cancel a subscription
+                // When the cancel button is clicked, send an AJAX request
+                // to our server to cancel the subscription.
+                const cancelSubscription = async (subscriptionId) => {
+                    setMessage("Cancelling subscription...");
+                
+                    const {subscription} = await fetch('/cancel-subscription', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        subscriptionId
+                    }),
+                    })
+                    .then((response) => response.json())
+                
+                    // Display the status of the subscription after attempting to
+                    // cancel.
+                    console.log('what are we getting?', subscription)
+                    if (subscription?.status) {
+                        setMessage('Subscription status: ' + subscription?.status);
+                    } else if (subscription?.error?.message) {
+                        setMessage('Error: ' + subscription?.error?.message);
+                    } else {
+                        setMessage('Unknown Error.');
+                    }
+                    // setMessage('Refreshing in 7s.');
+                
+                    // Redirect to the account page.
+                    setTimeout(() => {
+
+                        fetchCustomerSubscriptions() // get updated subscriptions
+
+                        // TODO: maybe uncomment later.
+                        // window.location.reload() // so we can fetch active subscriptions again // or just call the endpoint again?
+                    }, 7 * 1000);
+                };
+                </script>
+            </html>
+        `)
     }
-
-    res.send(`
-    <html>
-    <head>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
-        <style>
-            body {
-                background-color: #f4f5f7;
-            }
-            .notion-inspired {
-                border: 1px solid #e1e4e8;
-                border-radius: 8px;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-                background-color: #ffffff;
-                padding: 2rem;
-            }
-            .is-primary {
-                background-color: #6366F1;
-            }
-            .is-primary:hover {
-                background-color: #4F46E5;
-            }
-        </style>
-        <script type="text/javascript">
-            (function(f,b){if(!b.__SV){var e,g,i,h;window.mixpanel=b;b._i=[];b.init=function(e,f,c){function g(a,d){var b=d.split(".");2==b.length&&(a=a[b[0]],d=b[1]);a[d]=function(){a.push([d].concat(Array.prototype.slice.call(arguments,0)))}}var a=b;"undefined"!==typeof c?a=b[c]=[]:c="mixpanel";a.people=a.people||[];a.toString=function(a){var d="mixpanel";"mixpanel"!==c&&(d+="."+c);a||(d+=" (stub)");return d};a.people.toString=function(){return a.toString(1)+".people (stub)"};i="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
-            for(h=0;h<i.length;h++)g(a,i[h]);var j="set set_once union unset remove delete".split(" ");a.get_group=function(){function b(c){d[c]=function(){call2_args=arguments;call2=[c].concat(Array.prototype.slice.call(call2_args,0));a.push([e,call2])}}for(var d={},e=["get_group"].concat(Array.prototype.slice.call(arguments,0)),c=0;c<j.length;c++)b(j[c]);return d};b._i.push([e,f,c])};b.__SV=1.2;e=f.createElement("script");e.type="text/javascript";e.async=!0;e.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===f.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";g=f.getElementsByTagName("script")[0];g.parentNode.insertBefore(e,g)}})(document,window.mixpanel||[]);
-        </script>
-        <script>
-            // Initialize Mixpanel with your project token
-            mixpanel.init("772a4e12b080a5702ceb6b7f5fdd0cb2", { track_pageview: true });
-        </script>
-    </head>
-        <!-- ... existing HTML ... -->
-
-        <!-- Billing Information -->
-        ${billingHtml}
-
-        <!-- Back to Dashboard Button -->
-        <section class="section">
-            <div class="container">
-                <a href="/dashboard" class="button is-light">Back to Dashboard</a>
-            </div>
-        </section>
-
-        <!-- Additional scripts -->
-        <script>
-            /* ... Additional scripts ... */
-        </script>
-        </html>
-    `)
-})
+)
 
 router.get('/logout', (req, res) => {
     // Destroy the session and log the user out
@@ -1627,6 +1977,148 @@ router.get('/logout', (req, res) => {
 
         // Redirect to the login page or homepage after logout
         res.redirect('/login')
+    })
+})
+
+router.get(
+    '/create-stripe-payment-intent',
+    isAuthenticated,
+    async (req, res) => {
+        // Create a new customer object (if this is the first time they're registering with us)
+        const customer = await stripe.customers.create({
+            email: req.body.email,
+        })
+
+        // Save the customer.id in your database alongside your user.
+        // We're simulating authentication with a cookie.
+        res.cookie('customer', customer.id, { maxAge: 900000, httpOnly: true })
+
+        res.send({ customer: customer })
+    }
+)
+
+router.post('/create-subscription', isAuthenticated, async (req, res) => {
+    const user = req.session.user
+
+    // Simulate authenticated user. In practice this will be the
+    // Stripe Customer ID related to the authenticated user.
+    const customerId = user.stripeCustomerId // req.cookies['customer']
+
+    // Create the subscription
+    const priceId = req.body.priceId
+
+    try {
+        const subscription = await stripe.subscriptions.create({
+            customer: customerId,
+            items: [
+                {
+                    price: priceId,
+                },
+            ],
+            payment_behavior: 'default_incomplete',
+            expand: ['latest_invoice.payment_intent'],
+        })
+
+        res.send({
+            subscriptionId: subscription.id,
+            clientSecret:
+                subscription.latest_invoice.payment_intent.client_secret,
+        })
+    } catch (error) {
+        return res.status(400).send({ error: { message: error.message } })
+    }
+})
+
+router.post('/cancel-subscription', isAuthenticated, async (req, res) => {
+    // Cancel the subscription
+    try {
+        const deletedSubscription = await stripe.subscriptions.cancel(
+            req.body.subscriptionId
+        )
+
+        res.send({ subscription: deletedSubscription })
+    } catch (error) {
+        return res.status(400).send({ error: { message: error.message } })
+    }
+})
+
+router.post('/update-subscription', isAuthenticated, async (req, res) => {
+    try {
+        const subscription = await stripe.subscriptions.retrieve(
+            req.body.subscriptionId
+        )
+        const updatedSubscription = await stripe.subscriptions.update(
+            req.body.subscriptionId,
+            {
+                items: [
+                    {
+                        id: subscription.items.data[0].id,
+                        price: process.env[
+                            req.body.newPriceLookupKey.toUpperCase()
+                        ],
+                    },
+                ],
+            }
+        )
+
+        res.send({ subscription: updatedSubscription })
+    } catch (error) {
+        return res.status(400).send({ error: { message: error.message } })
+    }
+})
+
+router.get('/subscriptions', isAuthenticated, async (req, res) => {
+    const user = req.session.user
+
+    // Simulate authenticated user. In practice this will be the
+    // Stripe Customer ID related to the authenticated user.
+    const customerId = user.stripeCustomerId // req.cookies['customer']
+
+    /**
+     * Docs here https://stripe.com/docs/api/subscriptions/list?lang=node
+     */
+    const subscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'active',
+        expand: ['data.default_payment_method'],
+    })
+
+    res.json({ subscriptions })
+})
+
+router.get('/invoice-preview', isAuthenticated, async (req, res) => {
+    const user = req.session.user
+
+    const customerId = user.stripeCustomerId // req.cookies['customer']
+    const priceId = process.env[req.query.newPriceLookupKey.toUpperCase()]
+
+    const subscription = await stripe.subscriptions.retrieve(
+        req.query.subscriptionId
+    )
+
+    const invoice = await stripe.invoices.retrieveUpcoming({
+        customer: customerId,
+        subscription: req.query.subscriptionId,
+        subscription_items: [
+            {
+                id: subscription.items.data[0].id,
+                price: priceId,
+            },
+        ],
+    })
+
+    res.send({ invoice })
+})
+
+router.get('/config', isAuthenticated, async (req, res) => {
+    const prices = await stripe.prices.list({
+        // lookup_keys: ['sample_basic', 'sample_premium'],
+        expand: ['data.product'],
+    })
+
+    res.send({
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+        prices: prices.data,
     })
 })
 
