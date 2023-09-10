@@ -145,3 +145,6 @@ dist
 *test*
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+
+# Ignore local db
+*.sqlite3
