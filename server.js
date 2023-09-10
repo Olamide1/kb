@@ -3,11 +3,16 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
 
+const cors = require('cors')
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const routes = require('./routes/index');
 const customRoutes = require('./routes/custom-routes')
+
+// TODO: We need to configure cors to only accept request from some domains.
+app.use(cors())
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
