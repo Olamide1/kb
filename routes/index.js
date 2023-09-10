@@ -14,6 +14,10 @@ const addDays = require('date-fns/addDays')
 
 const axios = require('axios')
 
+const chalk = require("chalk"); // https://stackoverflow.com/a/70748594/9259701
+
+const db = require('../models');
+
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2022-08-01',
     appInfo: {

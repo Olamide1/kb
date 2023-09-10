@@ -1,0 +1,9 @@
+// .sequelizerc, https://sequelize.org/docs/v6/other-topics/migrations/#the-sequelizerc-file
+
+const path = require('path');
+const dotenv = require('dotenv').config();
+
+module.exports = {
+  'config': path.resolve('configs', 'database.js'),
+  'debug': true,
+};
