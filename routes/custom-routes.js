@@ -6,6 +6,7 @@ const authMiddleware = require('../middlewares/auth')
 
 const CUSTOM_ENDPOINT = '/custom'
 
+// TODO: add auth to check the body of the request.
 router.post(
     `${CUSTOM_ENDPOINT}/taika/send-email`,
     authMiddleware.checkEmailServiceRequest,
