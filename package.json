@@ -4,7 +4,7 @@
   "description": "knowledge base for employee onboarding",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon server.js",
+    "start": "node --trace-warnings --unhandled-rejections=warn server.js",
     "dev": "nodemon --trace-warnings --unhandled-rejections=warn server.js",
     "migrate-db": "npx sequelize-cli db:migrate",
     "seed-db": "npx sequelize-cli db:seed:all",
@@ -13,11 +13,13 @@
   },
   "keywords": [],
   "author": "TheAkomolafe <theolaakomolafe@gmail.com> (https://twitter.com/theAkomolafe/)",
-  "contributors": [{
-    "name" : "Chuks Jr.",
-    "email" : "hellow@chuks.name.ng",
-    "url" : "https://chuks.name.ng/"
-  }],
+  "contributors": [
+    {
+      "name": "Chuks Jr.",
+      "email": "hellow@chuks.name.ng",
+      "url": "https://chuks.name.ng/"
+    }
+  ],
   "license": "ISC",
   "dependencies": {
     "axios": "^1.5.0",
