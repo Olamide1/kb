@@ -1,18 +1,23 @@
 {
   "name": "knowledgebase-platform",
   "version": "1.0.0",
-  "description": "",
+  "description": "knowledge base for employee onboarding",
   "main": "index.js",
   "scripts": {
     "start": "nodemon server.js",
     "dev": "nodemon --trace-warnings --unhandled-rejections=warn server.js",
-    "migrate-db": "node_modules/.bin/sequelize db:migrate",
-    "seed-db": "node_modules/.bin/sequelize db:seed:all",
+    "migrate-db": "npx sequelize-cli db:migrate",
+    "seed-db": "npx sequelize-cli db:seed:all",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "postcss public/stylesheets/tailwind.css -o public/stylesheets/style.css"
   },
   "keywords": [],
-  "author": "",
+  "author": "TheAkomolafe <theolaakomolafe@gmail.com> (https://twitter.com/theAkomolafe/)",
+  "contributors": [{
+    "name" : "Chuks Jr.",
+    "email" : "hellow@chuks.name.ng",
+    "url" : "https://chuks.name.ng/"
+  }],
   "license": "ISC",
   "dependencies": {
     "axios": "^1.5.0",
