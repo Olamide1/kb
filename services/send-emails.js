@@ -23,7 +23,7 @@ exports.sendTaikaEmail = async (req, res) => {
     // send mail with defined transport object
     transporter.sendMail(
         {
-            from: `"Taika!!" <${process.env.TAIKA_CHUKS_EMAIL_ADDRESS}>`, // sender address
+            from: `"Taika by Placeholder" <${process.env.TAIKA_CHUKS_EMAIL_ADDRESS}>`, // sender address
             to: `${req.body.email}, ${process.env.OLA_GMAIL_ADDRESS}`, // list of receivers
             subject: req.body.subject, // Subject line
             text: req.body.body, // plain text body
@@ -34,10 +34,13 @@ exports.sendTaikaEmail = async (req, res) => {
                 console.error(error) // show a 'email doesn't exist notification'
                 res.status(400).send({ success: false })
             } else {
-                // console.log(info)
-
                 if (Array.isArray(info.rejected) && info.rejected.length > 0) {
-                    // means one of the emails did not send.
+                    /**
+                     * means one of the emails did not send.
+                     *
+                     * Not sure if the rejected array would be filled immediately ...
+                     */
+                    // res.status(200).send({ success: false, message: "We couldn't send a message to " . info.rejected.toString() })
                 }
 
                 console.log('Sent email: %s', info.messageId)

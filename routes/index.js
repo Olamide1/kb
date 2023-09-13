@@ -264,13 +264,19 @@ router.get('/login', (req, res) => {
 })
 
 // POST route for login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     const { email, password } = req.body
 
-    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
-    const user = users.find((u) => u.email === email)
+    // const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
+    // const user = users.find((u) => u.email === email)
 
-    if (!user) {
+    const user = await db.User.find({
+        where: {
+            email
+        }
+    })
+
+    if (user === null || !user) {
         return res.send(`
             <!DOCTYPE html>
             <html>
@@ -334,22 +340,27 @@ router.post('/login', (req, res) => {
                 // Create a customer. This will also set a cookie on the server
                 // to simulate having a logged in user.
                 // Create a new customer object (if this is the first time they're registering with us)
-                const customer = await stripe.customers.create({
-                    email: req.body.email,
-                })
-
-                user.stripeCustomerId = customer.id
-
-                // update the user details.
-                const updatedUsers = users.map((val) => {
-                    return val?.email == email ? user : val
-                })
-
-                // TODO: Save to DB
-                fs.writeFileSync(
-                    usersFilePath,
-                    JSON.stringify(updatedUsers, null, 4)
-                )
+                try {
+                    const customer = await stripe.customers.create({
+                        email: req.body.email,
+                    })
+    
+                    user.stripeCustomerId = customer.id
+    
+                    // update the user details.
+                    const updatedUsers = users.map((val) => {
+                        return val?.email == email ? user : val
+                    })
+    
+                    // TODO: Save to DB
+                    fs.writeFileSync(
+                        usersFilePath,
+                        JSON.stringify(updatedUsers, null, 4)
+                    )
+                } catch (error) {
+                    // just continue
+                    console.error('Could not create stripe key');
+                }
             }
 
             req.session.user = user
