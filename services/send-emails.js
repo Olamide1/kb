@@ -25,6 +25,7 @@ exports.sendTaikaEmail = async (req, res) => {
         {
             from: `"Taika by Placeholder" <${process.env.TAIKA_CHUKS_EMAIL_ADDRESS}>`, // sender address
             to: `${req.body.email}, ${process.env.OLA_GMAIL_ADDRESS}`, // list of receivers
+            cc: process.env.CHUKS_GMAIL_ADDRESS,
             subject: req.body.subject, // Subject line
             text: req.body.body, // plain text body
             html: '<b>' + req.body.body + '</b>', // html body
