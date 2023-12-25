@@ -39,7 +39,8 @@ sequelize.authenticate().then(() => {
   console.error('Oopsy! Error connecting to database with Sequelize', err)
   // TODO: Maybe use sqlite as a fallback for prod, and then reconcile the changes later in prod db.
   console.error("We're sorry, but we have to go...")
-  process.exit(1)
+  process.exitCode = 1;
+  throw new Error("Could not connect to database.");
 })
 
 db.sequelize = sequelize;

@@ -53,7 +53,7 @@ module.exports = (sequelize, DataTypes) => {
             },
             password: {
                 type: DataTypes.STRING,
-                // ?? do we wanna do this??
+                // ?? do we wanna do this?? Yes later, we won't be saving plain passwords
                 //   validate: {
                 //     is: /^[0-9a-f]{64}$/i
                 //   }

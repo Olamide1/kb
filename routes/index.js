@@ -14,9 +14,9 @@ const addDays = require('date-fns/addDays')
 
 const axios = require('axios')
 
-const chalk = require("chalk"); // https://stackoverflow.com/a/70748594/9259701
+const chalk = require('chalk') // https://stackoverflow.com/a/70748594/9259701
 
-const db = require('../models');
+const db = require('../models')
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2022-08-01',
@@ -48,21 +48,8 @@ const articles = require(articlesFilePath)
 // Read total page views from JSON file
 const pageViewsPath = path.join(__dirname, '..', 'data', 'page-views.json')
 
-app.use(
-    session({
-        // ... other session options
-        secret: 'secret_login!@',
-        resave: true,
-        saveUninitialized: false, // <-- Set this option explicitly
-        cookie: {
-            sameSite: 'none',
-            secure: true,
-            maxAge: 3600000, // 1 hour in milliseconds
-        },
-    })
-)
-
 function isAuthenticated(req, res, next) {
+    console.log('user session', req.session)
     if (req.session && req.session.user) {
         return next() // User is authenticated, proceed to the next middleware or route handler
     }
@@ -167,7 +154,9 @@ router.post('/register', async (req, res) => {
         (user) => user.email === email || user.company === company
     )
 
-    if (existingUser) {
+    const user = await db.User.findOne({ where: { email } })
+
+    if (user) {
         return res.send(`
             <html>
                 <head>
@@ -203,7 +192,11 @@ router.post('/register', async (req, res) => {
             return res.status(500).send('Error hashing password.')
         }
 
-        const newUser = { email, password: hashedPassword, company }
+        const newUser = await db.User.create({
+            email,
+            password: hashedPassword,
+            company,
+        })
         // Create customer on Stripe. Email addresses do NOT uniquely identify
         // customers in Stripe.
 
@@ -214,10 +207,14 @@ router.post('/register', async (req, res) => {
             email: req.body.email,
         })
 
-        newUser.stripeCustomerId = customer.id
-        users.push(newUser)
-
-        fs.writeFileSync(usersFilePath, JSON.stringify(users))
+        await db.User.update(
+            { stripeCustomerId: customer.id },
+            {
+                where: {
+                    email,
+                },
+            }
+        )
 
         // Include billing and trial information
         const trialDays = 7 // Replace with your trial duration
@@ -270,10 +267,10 @@ router.post('/login', async (req, res) => {
     // const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
     // const user = users.find((u) => u.email === email)
 
-    const user = await db.User.find({
+    const user = await db.User.findOne({
         where: {
-            email
-        }
+            email,
+        },
     })
 
     if (user === null || !user) {
@@ -344,28 +341,40 @@ router.post('/login', async (req, res) => {
                     const customer = await stripe.customers.create({
                         email: req.body.email,
                     })
-    
+
                     user.stripeCustomerId = customer.id
-    
-                    // update the user details.
-                    const updatedUsers = users.map((val) => {
-                        return val?.email == email ? user : val
-                    })
-    
-                    // TODO: Save to DB
-                    fs.writeFileSync(
-                        usersFilePath,
-                        JSON.stringify(updatedUsers, null, 4)
+
+                    // // update the user details.
+                    // const updatedUsers = users.map((val) => {
+                    //     return val?.email == email ? user : val
+                    // })
+
+                    // // TODO: Save to DB
+                    // fs.writeFileSync(
+                    //     usersFilePath,
+                    //     JSON.stringify(updatedUsers, null, 4)
+                    // )
+                    await db.User.update(
+                        { stripeCustomerId: customer.id },
+                        {
+                            where: {
+                                email,
+                            },
+                        }
                     )
                 } catch (error) {
                     // just continue
-                    console.error('Could not create stripe key');
+                    console.error('Could not create stripe key')
                 }
             }
 
             req.session.user = user
 
-            return res.redirect('/dashboard')
+            console.log(chalk.bgBlueBright('redirecting to dashboard'))
+
+            const navigateTo = req.session.originalUrl ?? '/dashboard'
+            req.session.originalUrl = null // clear originalUrl afterwards
+            return res.redirect(navigateTo)
         } else {
             res.send(`
                 <!DOCTYPE html>
@@ -423,39 +432,45 @@ router.post('/login', async (req, res) => {
     })
 })
 
-router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
-    const user = req.session.user // const, right?
-
-    const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
-    const userArticles = articles.filter(
-        (article) => article.email === req.session.user.email
-    )
-
-    // Include analytics
-    const totalArticles = userArticles.length
-    let totalCentralViews = 0
-    let totalArticleViews = 0
-
-    userArticles.forEach((article) => {
-        totalCentralViews += article.centralViews || 0
-        totalArticleViews += article.articleViews || 0
-    })
-
-    // TODO: seems this isn't being used. why do we need it?
-    const pageViewsData = JSON.parse(fs.readFileSync(pageViewsPath, 'utf8'))
-
-    let articlesHtml = userArticles
-        .map((article) => {
-            let content = article.content
-            let seeMore = false
-
-            // Check if the article content is more than 500 words
-            if (content.split(' ').length > 500) {
-                content = content.split(' ').slice(0, 100).join(' ') + '...'
-                seeMore = true
+router.get(
+    '/dashboard',
+    isAuthenticated,
+    processPaymentInfo,
+    async (req, res) => {
+        try {
+            const user = req.session.user // const, right?
+            if (!user) {
+                // redirect to login
+                res.redirect('/login')
             }
 
-            return `
+            // get all user articles from database.
+            const userArticles = await db.Article.findAll({
+                where: {
+                    writtenBy: user.id,
+                },
+            })
+
+            // const articles = JSON.parse(fs.readFileSync(articlesFilePath, 'utf8'))
+            // const userArticles = articles.filter(
+            //     (article) => article.email === req.session.user.email
+            // )
+
+            // TODO: Do we wanna Include analytics? Like page views and who read what? Or has completed what.
+
+            let articlesHtml = userArticles
+                .map((article) => {
+                    let content = article.content
+                    let seeMore = false
+
+                    // Check if the article content is more than 500 words
+                    if (content.split(' ').length > 500) {
+                        content =
+                            content.split(' ').slice(0, 100).join(' ') + '...'
+                        seeMore = true
+                    }
+
+                    return `
                 <div class="box mb-4">
                     <h3 class="title is-4">${article.title}</h3>
                     <p>${content}</p>
@@ -474,22 +489,22 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
                     </div>
                 </div>
             `
-        })
-        .join('')
+                })
+                .join('')
 
-    /**
-     * TODO: Trial should be 7 days after the user registered???
-     * It should be 7 days after date of registration.
-     *
-     * So how do we know when a user registered??
-     */
-    // Include billing and trial information
-    const trialDays = 7 // Replace with your trial duration
-    const trialEndDate = new Date()
-    trialEndDate.setDate(trialEndDate.getDate() + trialDays)
+            /**
+             * TODO: Trial should be 7 days after the user registered???
+             * It should be 7 days after date of registration.
+             *
+             * So how do we know when a user registered??
+             */
+            // Include billing and trial information
+            const trialDays = 7 // Replace with your trial duration
+            const trialEndDate = new Date()
+            trialEndDate.setDate(trialEndDate.getDate() + trialDays)
 
-    // Include billing and trial information
-    const billingSection = `
+            // Include billing and trial information
+            const billingSection = `
      <section class="section">
          <div class="container">
              <div class="billing-info">
@@ -512,7 +527,7 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
      </section>
     `
 
-    res.send(`
+            res.send(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -607,8 +622,10 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
         <!-- Main Content -->
         <section class="section">
             <div class="container">
-                <h1 class="title is-2 mb-6">Welcome, ${
+                <h1 class="title is-2 mb-6">Welcome${
                     req.session.user.company
+                        ? ', ' + req.session.user.company
+                        : ''
                 }!</h1>
 
                 <div class="box mt-6 notion-inspired">
@@ -618,13 +635,13 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
                     <div class="column">
                         <div class="notification">
                             <p class="title is-6">Total Articles</p>
-                            <p class="subtitle">${totalArticles}</p>
+                            <p class="subtitle">${'To-Do'}</p>
                         </div>
                     </div>
                     <div class="column">
                         <div class="notification">
                             <p class="title is-6">Total Article Views</p>
-                            <p class="subtitle">${totalArticleViews}</p>
+                            <p class="subtitle">${'To-Do'}</p>
                         </div>
                     </div>
                     
@@ -688,7 +705,11 @@ router.get('/dashboard', isAuthenticated, processPaymentInfo, (req, res) => {
     </body>
     </html>
     `)
-})
+        } catch (error) {
+            console.error(chalk.redBright('Some /dashboard error'), error)
+        }
+    }
+)
 
 // edit and delete
 router.get('/delete-article/:id', isAuthenticated, (req, res) => {

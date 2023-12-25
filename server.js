@@ -1,7 +1,7 @@
 const express = require('express')
 const bodyParser = require('body-parser')
 const session = require('express-session')
-const helmet = require('helmet');
+const helmet = require('helmet')
 const db = require('./models')
 
 // Initialize sequelize session store
@@ -27,7 +27,9 @@ const _sessionOptions = {
     saveUninitialized: true,
     cookie: {
         path: '/',
-        secure: true, // serve secure cookies
+        // https://stackoverflow.com/a/67974417/9259701
+        ...(process.env.NODE_ENV === 'production' && {secure: true}),
+        // secure: true, // serve secure cookies
     },
 }
 
@@ -43,7 +45,11 @@ const customRoutes = require('./routes/custom-routes')
 // TODO: We need to configure cors to only accept request from some domains.
 app.use(cors())
 
-app.use(helmet());
+app.use(
+    helmet({
+        contentSecurityPolicy: false, // allow mixpanel.
+    })
+)
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }))
