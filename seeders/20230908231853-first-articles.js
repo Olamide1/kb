@@ -19,7 +19,7 @@ module.exports = {
                     id: 1,
                     title: 'New article',
                     content:
-                        'Still slightly shocked by Man Utd’s performance against Wolves. \r\n\r\nBoth with and without the ball. \r\n\r\nThey pressed how they usually do (Wingers inside on oppo’s CBs) but didn’t release their full back to press the oppositions full back. It was so easy for Wolves to play out.\r\n',
+                        'Still slightly shocked by Man Utd\'s performance against Wolves. \r\n\r\nBoth with and without the ball. \r\n\r\nThey pressed how they usually do (Wingers inside on oppo\'s CBs) but didn\'t release their full back to press the oppositions full back. It was so easy for Wolves to play out.\r\n',
                     writtenBy: 1,
                 },
                 {
@@ -29,7 +29,6 @@ module.exports = {
                         'This is the pellow case of the century that helps the other pellow cases.',
                     writtenBy: 4,
                     articleViews: 2,
-                    centralViews: 2,
                 },
                 {
                     id: 3,
@@ -52,7 +51,6 @@ module.exports = {
                         'This article is for Chiedociernklanvlknasv knasdvlknasr',
                     writtenBy: 3,
                     articleViews: 1,
-                    centralViews: 1,
                 },
             ],
             {}

@@ -11,3 +11,9 @@ More on sequelize [migrations](https://sequelize.org/docs/v6/other-topics/migrat
 
 * Run seeds in the db: `npx sequelize-cli db:seed:all`
 * Undo seed: `npx sequelize-cli db:seed:undo:all`. Exclude 'all' to undo only the last seed.
+
+
+> scratch pad
+
+---
+

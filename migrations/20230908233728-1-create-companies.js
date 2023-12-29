@@ -9,13 +9,17 @@ module.exports = {
          * Example:
          * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
          */
-        await queryInterface
+        try {
+            await queryInterface
             .createTable('Companies', {
                 id: {
                     allowNull: false,
                     autoIncrement: true,
                     primaryKey: true,
                     type: Sequelize.INTEGER,
+                },
+                ref: {
+                    type: Sequelize.UUID,
                 },
                 name: {
                     type: Sequelize.STRING,
@@ -48,6 +52,9 @@ module.exports = {
                     defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
                 },
             })
+        } catch (error) {
+            console.error('Did not migrate', __filename)
+        }
     },
 
     async down(queryInterface, Sequelize) {

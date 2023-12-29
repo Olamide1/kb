@@ -30,9 +30,13 @@ module.exports = (sequelize, DataTypes) => {
         {
             id: {
                 allowNull: false,
-                autoIncrement: true, // Or DataTypes.UUIDV1,
+                autoIncrement: true,
                 primaryKey: true,
-                type: DataTypes.INTEGER, // TODO: make DataTypes.UUID, everywhere else too
+                type: DataTypes.INTEGER,
+            },
+            ref: {
+                type: DataTypes.UUID,
+                defaultValue: DataTypes.UUIDV4
             },
             name: {
                 type: DataTypes.STRING,

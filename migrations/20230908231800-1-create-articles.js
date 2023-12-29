@@ -9,13 +9,17 @@ module.exports = {
          * Example:
          * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
          */
-        await queryInterface
+        try {
+            await queryInterface
             .createTable('Articles', {
                 id: {
                     allowNull: false,
                     autoIncrement: true,
                     primaryKey: true,
                     type: Sequelize.INTEGER,
+                },
+                ref: {
+                    type: Sequelize.UUID,
                 },
                 title: {
                     type: Sequelize.STRING,
@@ -35,9 +39,6 @@ module.exports = {
                 articleViews: {
                     type: Sequelize.INTEGER,
                 },
-                centralViews: {
-                    type: Sequelize.INTEGER,
-                },
                 createdAt: {
                     allowNull: false,
                     type: Sequelize.DATE,
@@ -49,6 +50,9 @@ module.exports = {
                     defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
                 },
             })
+        } catch (error) {
+            console.error('Did not migrate', __filename)
+        }
     },
 
     async down(queryInterface, Sequelize) {
