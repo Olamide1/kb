@@ -1586,13 +1586,12 @@ router.post('/payment', isAuthenticated, async (req, res) => {
         // 303 redirect to session.url
         res.redirect(session.url)
 
-        return
     } catch (error) {
         res.sendStatus(500)
     }
 
-    // TODO: will delete ... or maybe re-purpose.
-    res.send(`
+    // TODO: will delete ... it shows this and doesn't re-direct.
+    /* res.send(`
 
 
     <!DOCTYPE html>
@@ -1726,7 +1725,7 @@ router.post('/payment', isAuthenticated, async (req, res) => {
     </html>
 
  
-    `)
+    `) */
 })
 
 router.post(
