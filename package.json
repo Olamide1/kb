@@ -6,10 +6,10 @@
   "scripts": {
     "start": "node --trace-warnings --unhandled-rejections=warn server.js",
     "dev": "nodemon --trace-warnings --unhandled-rejections=warn server.js",
-    "migrate-db": "npx sequelize-cli db:migrate",
-    "seed-db": "npx sequelize-cli db:seed:all",
-    "seed:undo": "npx sequelize-cli db:seed:undo",
-    "seed:undo:all": "npx sequelize-cli db:seed:undo:all",
+    "migrate-db": "node_modules/.bin/sequelize db:migrate",
+    "seed-db": "node_modules/.bin/sequelize db:seed:all",
+    "seed:undo": "node_modules/.bin/sequelize db:seed:undo",
+    "seed:undo:all": "node_modules/.bin/sequelize db:seed:undo:all",
     "migrate:undo:all": "node_modules/.bin/sequelize db:migrate:undo:all",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "postcss public/stylesheets/tailwind.css -o public/stylesheets/style.css"
