@@ -1560,33 +1560,28 @@ router.post('/payment', isAuthenticated, async (req, res) => {
     // See your keys here: https://dashboard.stripe.com/apikeys
 
     try {
-        const session = await stripe.checkout.sessions.create(
-            {
-                line_items: [
-                    {
-                        price: req.body.priceId, // '{{PRICE_ID}}'
-                        quantity: 1,
-                    },
-                ],
-                mode: 'subscription',
+        const session = await stripe.checkout.sessions.create({
+            line_items: [
+                {
+                    price: req.body.priceId, // '{{PRICE_ID}}'
+                    quantity: 1,
+                },
+            ],
+            mode: 'subscription',
 
-                /**
-                 * {CHECKOUT_SESSION_ID} is a string literal; do not change it!
-                 * the actual Session ID is returned in the query parameter when your customer
-                 * is redirected to the success page.
-                 */
-                success_url: `${_BASE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${_BASE_URL}/payment-failed`,
-            },
-            {
-                stripeAccount: process.env.CONNECTED_STRIPE_ACCOUNT_ID,
-            }
-        )
+            /**
+             * {CHECKOUT_SESSION_ID} is a string literal; do not change it!
+             * the actual Session ID is returned in the query parameter when your customer
+             * is redirected to the success page.
+             */
+            success_url: `${_BASE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${_BASE_URL}/payment-failed`,
+        })
 
         // 303 redirect to session.url
-        res.redirect(session.url)
-
+        res.redirect(303, session.url)
     } catch (error) {
+        console.log('failed to generate stripe payment link', error)
         res.sendStatus(500)
     }
 
@@ -1757,59 +1752,13 @@ router.post(
     }
 )
 
+router.get('/payment-failed', (req, res) => {
+    res.redirect('/billing?payment=0')
+})
+
 // Payment confirmation page
 router.get('/payment-success', isAuthenticated, (req, res) => {
-    // ... Handle payment confirmation and subscription update ...
-
-    const user = req.session.user
-
-    // TODO: we should only update this after payment has been made.
-    // Update user's subscription status in your user data structure
-    // user.isPayingCustomer = true // Assuming you have a property called 'isPayingCustomer' to track subscription status
-
-    // Store billing information
-    // const newBilling = {
-    //     user: user.email,
-    //     date: new Date(),
-    //     amount: 10,
-    // }
-
-    // billings.push(newBilling)
-    // fs.writeFileSync(billingsPath, JSON.stringify(billings, null, 2), 'utf8')
-
-    // Add the subscription date to user's paidDates array
-    if (!user.paidDates) {
-        user.paidDates = []
-    }
-    // user.paidDates.push(newBilling.date.toISOString())
-
-    req.session.user = user
-    req.session.save((err) => {
-        if (err) {
-            console.error('Error saving session:', err)
-            return res.status(500).send('Internal Server Error')
-        }
-
-        res.send(`
-        <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Payment Confirmation</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <script src="https://js.stripe.com/v3/"></script>
-            </head>
-            <body>
-            <!-- ... existing HTML ... -->
-
-            You've paid! Congrats. Now go back to dashboard.
-
-            <!-- ... existing HTML ... -->
-
-
-            </body>
-            </html>
-        `)
-    })
+    res.redirect('/billing?payment=1')
 })
 
 // Billing history page
@@ -1839,6 +1788,7 @@ router.get(
 
                 console.log('price data from stripe', prices.data)
 
+                // https://stackoverflow.com/a/76517489/9259701
                 prices.data
                     .filter((price) => price.active === true)
                     .forEach((price) => {
@@ -1849,9 +1799,12 @@ router.get(
                           ${price.currency} /
                           ${price.recurring?.interval}
                         </span>
-                        <button onclick="createSubscription('${
-                            price.id
-                        }')">Purchase</button>
+                        <form action="/payment" method="POST">
+                            <input type="hidden" id="priceId" name="priceId" value="${
+                                price.id
+                            }" />
+                            <button type="submit" class="checkout-button">Purchase</button>
+                        </form>
                       </div>
                     `
                     })
