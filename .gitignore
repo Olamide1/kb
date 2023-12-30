@@ -148,3 +148,5 @@ dist
 
 # Ignore local db
 *.sqlite3
+
+.DS_Store

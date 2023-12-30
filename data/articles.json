@@ -1,36 +1,46 @@
 [
-  {
-    "id": "c3b03616-bfa5-40dd-85f9-a84d06b2ee19",
-    "title": "New article",
-    "content": "Still slightly shocked by Man Utd’s performance against Wolves. \r\n\r\nBoth with and without the ball. \r\n\r\nThey pressed how they usually do (Wingers inside on oppo’s CBs) but didn’t release their full back to press the oppositions full back. It was so easy for Wolves to play out.\r\n",
-    "email": "obakam@accounting.com"
-  },
-  {
-    "id": "91aec172-77b2-469d-9942-5f4edce8078f",
-    "title": "Pellow Case",
-    "content": "This is the pellow case of the century that helps the other pellow cases.",
-    "email": "ola@gmail.com",
-    "articleViews": 2,
-    "centralViews": 2
-  },
-  {
-    "id": "0e42e45c-4aa2-42f4-8e93-36e3596014b3",
-    "title": "What's up!",
-    "content": "Hello, We do need a central DB though.\r\nWe can use cache for when the user is offline, but that's like for later later. Do we have drafts capability? If you're writing and you mistakenly press/navigate back, would you lose your work?",
-    "email": "chuks@tenner.com"
-  },
-  {
-    "id": "686c6a82-36b0-4e66-8337-479833363885",
-    "title": "Another new article",
-    "content": "avkaln Anov aionvbioe another new article thing thing...",
-    "email": "ola@gmail.com"
-  },
-  {
-    "id": "adb2ac98-51b9-41cb-ba58-34102964ee82",
-    "title": "chiedozie's article",
-    "content": "This article is for Chiedociernklanvlknasv knasdvlknasr",
-    "email": "oakomolafe@gmail.com",
-    "articleViews": 1,
-    "centralViews": 1
-  }
+    {
+        "id": "c3b03616-bfa5-40dd-85f9-a84d06b2ee19",
+        "title": "New article",
+        "content": "Still slightly shocked by Man Utd's performance against Wolves. \r\n\r\nBoth with and without the ball. \r\n\r\nThey pressed how they usually do (Wingers inside on oppo's CBs) but didn't release their full back to press the oppositions full back. It was so easy for Wolves to play out.\r\n",
+        "email": "obakam@accounting.com"
+    },
+    {
+        "id": "91aec172-77b2-469d-9942-5f4edce8078f",
+        "title": "Pellow Case",
+        "content": "This is the pellow case of the century that helps the other pellow cases.",
+        "email": "ola@gmail.com",
+        "articleViews": 2
+    },
+    {
+        "id": "0e42e45c-4aa2-42f4-8e93-36e3596014b3",
+        "title": "What's up!",
+        "content": "Hello, We do need a central DB though.\r\nWe can use cache for when the user is offline, but that's like for later later. Do we have drafts capability? If you're writing and you mistakenly press/navigate back, would you lose your work?",
+        "email": "chuks@tenner.com"
+    },
+    {
+        "id": "686c6a82-36b0-4e66-8337-479833363885",
+        "title": "Another new article",
+        "content": "avkaln Anov aionvbioe another new article thing thing...",
+        "email": "ola@gmail.com"
+    },
+    {
+        "id": "adb2ac98-51b9-41cb-ba58-34102964ee82",
+        "title": "chiedozie's article",
+        "content": "This article is for Chiedociernklanvlknasv knasdvlknasr",
+        "email": "oakomolafe@gmail.com",
+        "articleViews": 1
+    },
+    {
+        "id": "6738a427-2f64-47cc-908b-8794094a75c0",
+        "title": "Onboarding a new client.",
+        "content": "These are the steps, how can we not make this look like a blogging platform? Product design?",
+        "email": "chuks@tenner.com"
+    },
+    {
+        "id": "a0cf4a74-6f8d-4302-a2a7-18bc6db8d4ee",
+        "title": "Do what?",
+        "content": "I don't know.",
+        "email": "chuks@tenner.com"
+    }
 ]

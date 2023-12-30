@@ -1,1 +1,1 @@
-web: npm run migrate-db -- --env=$NODE_ENV && npm run seed-db -- --env=$NODE_ENV && npm run start
+web: npm run seed:undo:all && npm run migrate:undo:all && npm run migrate-db -- --env=$NODE_ENV && npm run seed-db -- --env=$NODE_ENV && npm run start

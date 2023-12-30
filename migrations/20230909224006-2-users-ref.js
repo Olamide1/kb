@@ -12,18 +12,22 @@ module.exports = {
          * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
          */
 
-        await queryInterface.addConstraint('Users', {
-            fields: ['companyId'],
-            type: 'foreign key',
-            name: '1_companyId_fkey_ref_Companies',
-            references: {
-                table: 'Companies',
-                field: 'id',
-            },
-            // Optional, Docs here: https://sequelize.org/docs/v6/core-concepts/assocs/#options
-            onDelete: 'set null',
-            onUpdate: 'cascade',
-        })
+        try {
+            await queryInterface.addConstraint('Users', {
+                fields: ['companyId'],
+                type: 'foreign key',
+                name: '1_companyId_fkey_ref_Companies',
+                references: {
+                    table: 'Companies',
+                    field: 'id',
+                },
+                // Optional, Docs here: https://sequelize.org/docs/v6/core-concepts/assocs/#options
+                onDelete: 'set null',
+                onUpdate: 'cascade',
+            })
+        } catch (error) {
+            console.error('Did not migrate', __filename)
+        }
     },
 
     async down(queryInterface, Sequelize) {

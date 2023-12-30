@@ -41,9 +41,13 @@ module.exports = (sequelize, DataTypes) => {
         {
             id: {
                 allowNull: false,
-                autoIncrement: true, // Or DataTypes.UUIDV1,
+                autoIncrement: true,
                 primaryKey: true,
-                type: DataTypes.INTEGER, // TODO: make DataTypes.UUID, everywhere else too
+                type: DataTypes.INTEGER,
+            },
+            ref: {
+                type: DataTypes.UUID,
+                defaultValue: DataTypes.UUIDV4
             },
             email: {
                 type: DataTypes.STRING,
@@ -53,7 +57,7 @@ module.exports = (sequelize, DataTypes) => {
             },
             password: {
                 type: DataTypes.STRING,
-                // ?? do we wanna do this??
+                // ?? do we wanna do this?? Yes later, we won't be saving plain passwords
                 //   validate: {
                 //     is: /^[0-9a-f]{64}$/i
                 //   }

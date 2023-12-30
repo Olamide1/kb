@@ -12,58 +12,63 @@ module.exports = {
          * Example:
          * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
          */
-        await queryInterface.createTable(
-            'Users',
-            {
-                id: {
-                    allowNull: false,
-                    autoIncrement: true,
-                    primaryKey: true,
-                    type: Sequelize.INTEGER,
-                },
-                email: {
-                    type: Sequelize.STRING,
-                    validate: {
-                        isEmail: true,
+        try {
+            await queryInterface.createTable(
+                'Users',
+                {
+                    id: {
+                        allowNull: false,
+                        autoIncrement: true,
+                        primaryKey: true,
+                        type: Sequelize.INTEGER,
+                    },
+                    email: {
+                        type: Sequelize.STRING,
+                        unique: true,
+                    },
+                    ref: {
+                        type: Sequelize.UUID,
+                    },
+                    password: {
+                        type: Sequelize.STRING,
+                    },
+                    role: {
+                        type: Sequelize.STRING,
+                        comment: 'The job or role of the user in the company',
+                    },
+                    country: {
+                        type: Sequelize.STRING,
+                        comment: 'The country they registered from',
+                    },
+                    userStripeId: {
+                        type: Sequelize.STRING,
+                    },
+                    headerColor: {
+                        type: Sequelize.STRING,
+                    },
+                    companyId: {
+                        type: Sequelize.INTEGER,
+                    },
+                    createdAt: {
+                        allowNull: false,
+                        type: Sequelize.DATE,
+                        // Got answer here: https://github.com/sequelize/sequelize/issues/4896#issuecomment-158628594
+                        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
+                    },
+                    updatedAt: {
+                        allowNull: false,
+                        type: Sequelize.DATE,
+                        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
                     },
                 },
-                password: {
-                    type: Sequelize.STRING,
-                },
-                role: {
-                    type: Sequelize.STRING,
-                    comment: 'The job or role of the user in the company',
-                },
-                country: {
-                    type: Sequelize.STRING,
-                    comment: 'The country they registered from',
-                },
-                userStripeId: {
-                    type: Sequelize.STRING,
-                },
-                headerColor: {
-                    type: Sequelize.STRING,
-                },
-                companyId: {
-                    type: Sequelize.INTEGER,
-                },
-                createdAt: {
-                    allowNull: false,
-                    type: Sequelize.DATE,
-                    // Got answer here: https://github.com/sequelize/sequelize/issues/4896#issuecomment-158628594
-                    defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
-                },
-                updatedAt: {
-                    allowNull: false,
-                    type: Sequelize.DATE,
-                    defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
-                },
-            },
-            {
-                comment: 'Our users :)',
-                collate: 'utf8_bin',
-            }
-        )
+                {
+                    comment: 'Our users :)',
+                    collate: 'utf8_bin',
+                }
+            )
+        } catch (error) {
+            console.error('Did not migrate', __filename)
+        }
     },
 
     async down(queryInterface, Sequelize) {
