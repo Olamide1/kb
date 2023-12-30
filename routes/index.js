@@ -28,6 +28,13 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
     },
 })
 
+const _BASE_URL =
+    process.env.NODE_ENV === 'production'
+        ? 'https://yosei-aea83cf6fa05.herokuapp.com'
+        : process.env.NODE_ENV === 'staging'
+        ? 'https://yosei-aea83cf6fa05.herokuapp.com/'
+        : 'http://localhost:3000'
+
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
 
@@ -54,7 +61,7 @@ function isAuthenticated(req, res, next) {
      */
     // console.log('user session', req.session)
     if (req.session && req.session.user) {
-        // we don't need to return... 
+        // we don't need to return...
         return next() // User is authenticated, proceed to the next middleware or route handler
     }
     // If not authenticated, store the original URL to redirect after login
@@ -605,15 +612,15 @@ router.get(
                     </div>
                     <div class="navbar-item has-dropdown is-hoverable">
                         <a class="navbar-link">
-                            ${req.session.user.company}
+                            ${
+                                req.session.user.company ??
+                                req.session.user.email
+                            }
                         </a>
                         <div class="navbar-dropdown">
                             <a class="navbar-item" href="/settings">Settings</a>
                             <a class="navbar-item" href="/help">Help</a>
                             <a class="navbar-item" href="/billing">Billing information</a>
-
-                            <hr class="navbar-divider">
-                            <a class="navbar-item" href="/payment">Payment</a>
 
                             <hr class="navbar-divider">
                             <a class="navbar-item" href="/logout">Logout</a>
@@ -1547,7 +1554,44 @@ router.get('/help', isAuthenticated, (req, res) => {
 })
 
 // Payment page
-router.get('/payment', isAuthenticated, (req, res) => {
+router.post('/payment', isAuthenticated, async (req, res) => {
+    // TODO: collect price id from the submitted form.
+    // Set your secret key. Remember to switch to your live secret key in production.
+    // See your keys here: https://dashboard.stripe.com/apikeys
+
+    try {
+        const session = await stripe.checkout.sessions.create(
+            {
+                line_items: [
+                    {
+                        price: req.body.priceId, // '{{PRICE_ID}}'
+                        quantity: 1,
+                    },
+                ],
+                mode: 'subscription',
+
+                /**
+                 * {CHECKOUT_SESSION_ID} is a string literal; do not change it!
+                 * the actual Session ID is returned in the query parameter when your customer
+                 * is redirected to the success page.
+                 */
+                success_url: `${_BASE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${_BASE_URL}/payment-failed`,
+            },
+            {
+                stripeAccount: process.env.CONNECTED_STRIPE_ACCOUNT_ID,
+            }
+        )
+
+        // 303 redirect to session.url
+        res.redirect(session.url)
+
+        return
+    } catch (error) {
+        res.sendStatus(500)
+    }
+
+    // TODO: will delete ... or maybe re-purpose.
     res.send(`
 
 
@@ -1569,7 +1613,7 @@ router.get('/payment', isAuthenticated, (req, res) => {
                 <!-- Card number, expiration date, CVC, etc. -->
                 <!-- Replace with your actual Stripe integration code -->
                 <!--
-                <form action="/payment-confirm" method="post">
+                <form action="/billing" method="post">
                     <button class="button is-primary" type="submit">Proceed to Payment</button>
                 </form>
                 -->
@@ -1685,8 +1729,37 @@ router.get('/payment', isAuthenticated, (req, res) => {
     `)
 })
 
+router.post(
+    '/stripe-webhook',
+    bodyParser.raw({ type: 'application/json' }),
+    (request, response) => {
+        const sig = request.headers['stripe-signature']
+
+        let event
+
+        // Verify webhook signature and extract the event.
+        // See https://stripe.com/docs/webhooks#verify-events for more information.
+        try {
+            event = stripe.webhooks.constructEvent(
+                request.body,
+                sig,
+                endpointSecret
+            )
+        } catch (err) {
+            return response.status(400).send(`Webhook Error: ${err.message}`)
+        }
+
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object
+            handleCompletedCheckoutSession(session)
+        }
+
+        response.json({ received: true })
+    }
+)
+
 // Payment confirmation page
-router.get('/payment-confirm', isAuthenticated, (req, res) => {
+router.get('/payment-success', isAuthenticated, (req, res) => {
     // ... Handle payment confirmation and subscription update ...
 
     const user = req.session.user
@@ -1729,9 +1802,7 @@ router.get('/payment-confirm', isAuthenticated, (req, res) => {
             <body>
             <!-- ... existing HTML ... -->
 
-
-
-            
+            You've paid! Congrats. Now go back to dashboard.
 
             <!-- ... existing HTML ... -->
 
@@ -1760,29 +1831,34 @@ router.get(
         if (true || !user.isPayingCustomer) {
             // TODO: remove hardcoded boolean value.
 
-            const prices = await stripe.prices.list({
-                // lookup_keys: ['sample_basic', 'sample_premium'],
-                expand: ['data.product'],
-            })
-
-            // console.log('price data from stripe', prices.data)
-
-            prices.data
-                .filter((price) => price.active === true)
-                .forEach((price) => {
-                    pricesHtml += `
-                  <div>
-                    <span>
-                      ${price.product?.name} - ${price.unit_amount / 100} /
-                      ${price.currency} /
-                      ${price.recurring?.interval}
-                    </span>
-                    <button onclick="createSubscription('${
-                        price.id
-                    }')">Purchase</button>
-                  </div>
-                `
+            // should we always be fetching this? Can't we maybe cache or sth?
+            try {
+                const prices = await stripe.prices.list({
+                    // lookup_keys: ['sample_basic', 'sample_premium'],
+                    expand: ['data.product'],
                 })
+
+                console.log('price data from stripe', prices.data)
+
+                prices.data
+                    .filter((price) => price.active === true)
+                    .forEach((price) => {
+                        pricesHtml += `
+                      <div>
+                        <span>
+                          ${price.product?.name} - ${price.unit_amount / 100} /
+                          ${price.currency} /
+                          ${price.recurring?.interval}
+                        </span>
+                        <button onclick="createSubscription('${
+                            price.id
+                        }')">Purchase</button>
+                      </div>
+                    `
+                    })
+            } catch (error) {
+                console.log('error fetching stripe data', error)
+            }
 
             // Use prices.data
         }
@@ -1896,7 +1972,7 @@ router.get(
                     /* ... Additional scripts ... */
 
                     const createSubscription = (priceId) => {
-                        return fetch('/create-subscription', {
+                        return fetch('/payment', { // /create-subscription
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -1905,15 +1981,15 @@ router.get(
                             priceId: priceId,
                           }),
                         })
-                          .then((response) => response.json())
-                          .then((data) => {
-                            window.sessionStorage.setItem('subscriptionId', data.subscriptionId);
-                            window.sessionStorage.setItem('clientSecret', data.clientSecret);
-                            window.location.href = '/payment';
-                          })
-                          .catch((error) => {
-                            console.error('Error:', error);
-                          });
+                        //   .then((response) => response.json())
+                        //   .then((data) => {
+                        //     window.sessionStorage.setItem('subscriptionId', data.subscriptionId);
+                        //     window.sessionStorage.setItem('clientSecret', data.clientSecret);
+                        //     window.location.href = '/payment';
+                        //   })
+                        //   .catch((error) => {
+                        //     console.error('Error:', error);
+                        //   });
                       }
                 </script>
 
