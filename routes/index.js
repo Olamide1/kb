@@ -208,6 +208,8 @@ router.post('/register', async (req, res) => {
             password: hashedPassword,
             company,
         })
+
+        req.session.user = newUser.toJSON()
         // Create customer on Stripe. Email addresses do NOT uniquely identify
         // customers in Stripe.
 
@@ -226,6 +228,9 @@ router.post('/register', async (req, res) => {
                 },
             }
         )
+
+        // Update the session too.
+        req.session.user.stripeCustomerId = customer.id
 
         // Include billing and trial information
         const trialDays = 7 // Replace with your trial duration
@@ -1560,172 +1565,34 @@ router.post('/payment', isAuthenticated, async (req, res) => {
     // See your keys here: https://dashboard.stripe.com/apikeys
 
     try {
-        const session = await stripe.checkout.sessions.create(
-            {
-                line_items: [
-                    {
-                        price: req.body.priceId, // '{{PRICE_ID}}'
-                        quantity: 1,
-                    },
-                ],
-                mode: 'subscription',
+        const session = await stripe.checkout.sessions.create({
+            ...(req.session.user.stripeCustomerId && {
+                customer: req.session.user.stripeCustomerId,
+            }),
+            customer_email: req.session.user.email,
+            line_items: [
+                {
+                    price: req.body.priceId, // '{{PRICE_ID}}'
+                    quantity: 1,
+                },
+            ],
+            mode: 'subscription',
 
-                /**
-                 * {CHECKOUT_SESSION_ID} is a string literal; do not change it!
-                 * the actual Session ID is returned in the query parameter when your customer
-                 * is redirected to the success page.
-                 */
-                success_url: `${_BASE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${_BASE_URL}/payment-failed`,
-            },
-            {
-                stripeAccount: process.env.CONNECTED_STRIPE_ACCOUNT_ID,
-            }
-        )
+            /**
+             * {CHECKOUT_SESSION_ID} is a string literal; do not change it!
+             * the actual Session ID is returned in the query parameter when your customer
+             * is redirected to the success page.
+             */
+            success_url: `${_BASE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${_BASE_URL}/payment-failed`,
+        })
 
         // 303 redirect to session.url
-        res.redirect(session.url)
-
+        res.redirect(303, session.url)
     } catch (error) {
+        console.log('failed to generate stripe payment link', error)
         res.sendStatus(500)
     }
-
-    // TODO: will delete ... it shows this and doesn't re-direct.
-    /* res.send(`
-
-
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script src="https://js.stripe.com/v3/"></script>
-    </head>
-    <body>
-        <!-- ... existing HTML ... -->
-
-        <!-- Payment Form (Stripe Integration) -->
-        <section class="section">
-            <div class="container">
-                <h2 class="title is-2">Payment Details</h2>
-                <!-- Old Payment Form -->
-
-                <!-- Add Stripe elements here -->
-                <!-- Card number, expiration date, CVC, etc. -->
-                <!-- Replace with your actual Stripe integration code -->
-                <!--
-                <form action="/billing" method="post">
-                    <button class="button is-primary" type="submit">Proceed to Payment</button>
-                </form>
-                -->
-
-                <!-- // Old Payment Form -->
-
-                <!-- Stripe Test Card Details -->
-
-                <p>
-                    Try the successful test card: <span>4242424242424242</span>.
-                </p>
-
-                <p>
-                    Try the test card that requires SCA: <span>4000002500003155</span>.
-                </p>
-
-                <p>
-                    Use any <i>future</i> expiry date, CVC, and 5 digit postal code.
-                </p>
-
-                <!-- // Stripe Test Card Details -->
-
-                <form id="subscribe-form">
-                    <label>
-                    Full name
-                    <input type="text" id="name" value="Jenny Rosen" />
-                    </label>
-
-                    <div id="card-element">
-                    <!-- the card element will be mounted here -->
-                    </div>
-
-                    <button type="submit">
-                    Subscribe
-                    </button>
-
-                    <div id="messages"></div>
-                </form>
-            </div>
-        </section>
-
-        <!-- ... existing HTML ... -->
-
-        <script>
-        // helper method for displaying a status message.
-        const setMessage = (message) => {
-          const messageDiv = document.querySelector('#messages');
-          messageDiv.innerHTML += "<br>" + message;
-        }
-        
-        // Fetch public key and initialize Stripe.
-        let stripe, cardElement;
-        
-        fetch('/config')
-          .then((resp) => resp.json())
-          .then((resp) => {
-            stripe = Stripe(resp.publishableKey);
-        
-            const elements = stripe.elements();
-            cardElement = elements.create('card');
-            cardElement.mount('#card-element');
-          });
-        
-        // Extract the client secret query string argument. This is
-        // required to confirm the payment intent from the front-end.
-        const subscriptionId = window.sessionStorage.getItem('subscriptionId');
-        const clientSecret = window.sessionStorage.getItem('clientSecret');
-        // This sample only supports a Subscription with payment
-        // upfront. If you offer a trial on your subscription, then
-        // instead of confirming the subscription's latest_invoice's
-        // payment_intent. You'll use stripe.confirmCardSetup to confirm
-        // the subscription's pending_setup_intent.
-        // See https://stripe.com/docs/billing/subscriptions/trials
-        
-        // Payment info collection and confirmation
-        // When the submit button is pressed, attempt to confirm the payment intent
-        // with the information input into the card element form.
-        // - handle payment errors by displaying an alert. The customer can update
-        //   the payment information and try again
-        // - Stripe Elements automatically handles next actions like 3DSecure that are required for SCA
-        // - Complete the subscription flow when the payment succeeds
-        const form = document.querySelector('#subscribe-form');
-        form.addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const nameInput = document.getElementById('name');
-        
-          // Create payment method and confirm payment intent.
-          stripe.confirmCardPayment(clientSecret, {
-            payment_method: {
-              card: cardElement,
-              billing_details: {
-                name: nameInput.value,
-              },
-            }
-          }).then((result) => {
-            if(result.error) {
-              setMessage('Payment failed:' + result?.error?.message);
-            } else {
-              // Redirect the customer to their account page
-              // TODO: There should be a delay before redirecting...
-              setMessage('Success! Redirecting to your account.');
-              window.location.href = '/billing';
-            }
-          });
-        });
-        </script>
-
-
-    </body>
-    </html>
-
- 
-    `) */
 })
 
 router.post(
@@ -1757,60 +1624,54 @@ router.post(
     }
 )
 
+router.get('/payment-failed', (req, res) => {
+    res.redirect('/billing?payment=0')
+})
+
 // Payment confirmation page
 router.get('/payment-success', isAuthenticated, (req, res) => {
-    // ... Handle payment confirmation and subscription update ...
-
-    const user = req.session.user
-
-    // TODO: we should only update this after payment has been made.
-    // Update user's subscription status in your user data structure
-    // user.isPayingCustomer = true // Assuming you have a property called 'isPayingCustomer' to track subscription status
-
-    // Store billing information
-    // const newBilling = {
-    //     user: user.email,
-    //     date: new Date(),
-    //     amount: 10,
-    // }
-
-    // billings.push(newBilling)
-    // fs.writeFileSync(billingsPath, JSON.stringify(billings, null, 2), 'utf8')
-
-    // Add the subscription date to user's paidDates array
-    if (!user.paidDates) {
-        user.paidDates = []
-    }
-    // user.paidDates.push(newBilling.date.toISOString())
-
-    req.session.user = user
-    req.session.save((err) => {
-        if (err) {
-            console.error('Error saving session:', err)
-            return res.status(500).send('Internal Server Error')
-        }
-
-        res.send(`
-        <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Payment Confirmation</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <script src="https://js.stripe.com/v3/"></script>
-            </head>
-            <body>
-            <!-- ... existing HTML ... -->
-
-            You've paid! Congrats. Now go back to dashboard.
-
-            <!-- ... existing HTML ... -->
-
-
-            </body>
-            </html>
-        `)
-    })
+    res.redirect('/billing?payment=1')
 })
+
+router.post(
+    '/create-customer-portal-session',
+    isAuthenticated,
+    async (req, res) => {
+        try {
+            let customerStripeCustomerId = req.session.user.stripeCustomerId
+            // if they're not on our stripe, put them on...
+            if (!customerStripeCustomerId) {
+                const customer = await stripe.customers.create({
+                    email: req.session.user.email,
+                })
+
+                customerStripeCustomerId = customer.id
+                // TODO: Update the session data and the db too.
+                await db.User.update(
+                    { stripeCustomerId: customer.id },
+                    {
+                        where: {
+                            email: req.session.user.email,
+                        },
+                    }
+                )
+
+                req.session.user.stripeCustomerId = customerStripeCustomerId
+            }
+
+            const session = await stripe.billingPortal.sessions.create({
+                customer: customerStripeCustomerId,
+                return_url: `${_BASE_URL}/billing`,
+            })
+
+            res.redirect(303, session.url)
+        } catch (error) {
+            console.log('err 9879', error)
+
+            res.sendStatus(500)
+        }
+    }
+)
 
 // Billing history page
 router.get(
@@ -1839,19 +1700,24 @@ router.get(
 
                 console.log('price data from stripe', prices.data)
 
+                // https://stackoverflow.com/a/76517489/9259701
                 prices.data
                     .filter((price) => price.active === true)
                     .forEach((price) => {
                         pricesHtml += `
                       <div>
                         <span>
-                          ${price.product?.name} - ${price.unit_amount / 100} /
-                          ${price.currency} /
+                          ${price.product?.name} - ${price.currency} ${
+                            price.unit_amount / 100
+                        } /
                           ${price.recurring?.interval}
                         </span>
-                        <button onclick="createSubscription('${
-                            price.id
-                        }')">Purchase</button>
+                        <form action="/payment" method="POST">
+                            <input type="hidden" id="priceId" name="priceId" value="${
+                                price.id
+                            }" />
+                            <button type="submit" class="checkout-button">Purchase</button>
+                        </form>
                       </div>
                     `
                     })
@@ -1883,7 +1749,9 @@ router.get(
             billingHtml = `
                 <h2 class="title is-2">Billing Information</h2>
                 <p>You do not have an active subscription. Please proceed to payment to subscribe.</p>
-                <a href="/payment" class="button is-primary">Proceed to Payment</a>
+                <form method="POST" action="/create-customer-portal-session">
+                    <button type="submit" class="button is-primary">Manage billing</button>
+                </form>
             `
         }
 
@@ -2098,6 +1966,7 @@ router.get(
     '/create-stripe-payment-intent',
     isAuthenticated,
     async (req, res) => {
+        // TODO: do we want to do this on sign up??
         // Create a new customer object (if this is the first time they're registering with us)
         const customer = await stripe.customers.create({
             email: req.body.email,
