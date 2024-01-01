@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --trace-warnings --unhandled-rejections=warn server.js",
     "dev": "nodemon --trace-warnings --unhandled-rejections=warn server.js",
+    "dev:restart": "yarn run seed:undo:all && yarn run migrate:undo:all && yarn run migrate-db && yarn run seed-db && yarn run dev",
     "migrate-db": "npx sequelize-cli db:migrate",
     "seed-db": "npx sequelize-cli db:seed:all",
     "seed:undo": "npx sequelize-cli db:seed:undo",

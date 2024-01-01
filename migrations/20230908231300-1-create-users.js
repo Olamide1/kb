@@ -49,6 +49,11 @@ module.exports = {
                     companyId: {
                         type: Sequelize.INTEGER,
                     },
+                    subscriptionExpireDate: {
+                        type: Sequelize.DATE,
+                        defaultValue: null,
+                        comment: 'Time when their (current?) subscription expires.'
+                    },
                     createdAt: {
                         allowNull: false,
                         type: Sequelize.DATE,

@@ -1,6 +1,7 @@
 'use strict'
 const { Model } = require('sequelize')
 const constants = require('../utils/constants')
+const { isFuture } = require('date-fns')
 
 /**
  * TODO contribution in OSS.
@@ -29,6 +30,7 @@ module.exports = (sequelize, DataTypes) => {
                 // Company is the source model.
                 foreignKey: 'companyId',
                 allowNull: false,
+                as: 'company'
             })
         }
     }
@@ -47,7 +49,7 @@ module.exports = (sequelize, DataTypes) => {
             },
             ref: {
                 type: DataTypes.UUID,
-                defaultValue: DataTypes.UUIDV4
+                defaultValue: DataTypes.UUIDV4,
             },
             email: {
                 type: DataTypes.STRING,
@@ -67,11 +69,30 @@ module.exports = (sequelize, DataTypes) => {
             },
             role: {
                 type: DataTypes.STRING,
-                comment: 'The job or role of the user in the company'
+                comment: 'The job or role of the user in the company',
             },
             country: {
                 type: DataTypes.STRING,
-                comment: 'The country they registered from'
+                comment: 'The country they registered from',
+            },
+            haveActiveSubscription: {
+                type: DataTypes.VIRTUAL,
+                get() {
+                    const subDate = this.getDataValue('subscriptionExpireDate')
+                    return subDate && isFuture(subDate)
+                },
+                set(value) {
+                    throw new Error(
+                        'Do not try to set the User.`haveActiveSubscription` value!'
+                    )
+                },
+                comment: 'Are they currently subscribed?.',
+            },
+            // or "nextPaymentDate"
+            subscriptionExpireDate: {
+                type: DataTypes.DATE,
+                defaultValue: null,
+                comment: 'Time when their (current?) subscription expires.',
             },
             companyId: {
                 type: DataTypes.INTEGER,

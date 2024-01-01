@@ -159,12 +159,6 @@ router.get('/pricing', (req, res) => {
 router.post('/register', async (req, res) => {
     const { email, password, company } = req.body
 
-    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
-
-    const existingUser = users.find(
-        (user) => user.email === email || user.company === company
-    )
-
     const user = await db.User.findOne({ where: { email } })
 
     if (user) {
@@ -187,7 +181,7 @@ router.post('/register', async (req, res) => {
                     <section class="section">
                         <div class="container">
                             <div class="notification is-danger">
-                                <p>An account with the provided email or company name already exists. Please contact your company administrator for assistance.</p>
+                                <p>An account with the provided email already exists. Please contact your company administrator for assistance.</p>
                             </div>
                             <a href="/register" class="button is-primary">Try Again</a>
                         </div>
@@ -200,7 +194,7 @@ router.post('/register', async (req, res) => {
 
     bcrypt.hash(password, saltRounds, async (err, hashedPassword) => {
         if (err) {
-            return res.status(500).send('Error hashing password.')
+            return res.status(500).send('Error registering user.') // Error hashing password
         }
 
         const newUser = await db.User.create({
@@ -276,20 +270,41 @@ router.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'views', 'login.html'))
 })
 
+// route solely for testing!
+router.get('/test', async (req, res) => {
+    try {
+        const user = await db.User.findOne({
+            where: {
+                email: 'chuks@tenner.com',
+            },
+            include: {
+                model: db.Company,
+                as: 'company',
+            },
+        })
+
+        res.send({ user })
+    } catch (error) {
+        console.error('test error', error)
+        res.sendStatus(500)
+    }
+})
+
 // POST route for login
 router.post('/login', async (req, res) => {
     const { email, password } = req.body
-
-    // const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'))
-    // const user = users.find((u) => u.email === email)
 
     const user = await db.User.findOne({
         where: {
             email,
         },
+        include: {
+            model: db.Company,
+            as: 'company',
+        },
     })
 
-    if (user === null || !user) {
+    if (!user) {
         return res.send(`
             <!DOCTYPE html>
             <html>
@@ -384,6 +399,7 @@ router.post('/login', async (req, res) => {
                 }
             }
 
+            // update user session
             req.session.user = user
 
             console.log(chalk.bgBlueBright('redirecting to dashboard'))
@@ -618,7 +634,7 @@ router.get(
                     <div class="navbar-item has-dropdown is-hoverable">
                         <a class="navbar-link">
                             ${
-                                req.session.user.company ??
+                                req.session.user.company.name ??
                                 req.session.user.email
                             }
                         </a>
@@ -640,7 +656,8 @@ router.get(
             <div class="container">
                 <h1 class="title is-2 mb-6">Welcome${
                     req.session.user.company
-                        ? ', ' + req.session.user.company
+                        ? ', ' + req.session.user.company.name ??
+                          req.session.user.email
                         : ''
                 }!</h1>
 
@@ -975,7 +992,7 @@ router.get('/create-article', isAuthenticated, (req, res) => {
 router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
     // Generate a unique link for the user's knowledgebase using localhost and company name
     const uniqueLink = `http://localhost:3000/knowledgebase/${encodeURIComponent(
-        req.session.user.company
+        req.session.user.company.name
     )}`
 
     res.send(`
@@ -1014,7 +1031,10 @@ router.get('/share-knowledgebase', isAuthenticated, (req, res) => {
                     <div class="navbar-end">
                         <div class="navbar-item has-dropdown is-hoverable">
                             <a class="navbar-link">
-                                ${req.session.user.company}
+                                ${
+                                    req.session.user.company.name ??
+                                    req.session.user.email
+                                }
                             </a>
                             <div class="navbar-dropdown">
                                 <a class="navbar-item" href="/settings">Settings</a>
@@ -1385,7 +1405,10 @@ router.get('/settings', isAuthenticated, processPaymentInfo, (req, res) => {
                         <div class="navbar-end">
                             <div class="navbar-item has-dropdown is-hoverable">
                                 <a class="navbar-link">
-                                    ${req.session.user.company}
+                                    ${
+                                        req.session.user.company.name ??
+                                        req.session.user.email
+                                    }
                                 </a>
                                 <div class="navbar-dropdown">
                                     <a class="navbar-item" href="/settings">Settings</a>
@@ -1597,27 +1620,80 @@ router.post('/payment', isAuthenticated, async (req, res) => {
 
 router.post(
     '/stripe-webhook',
-    bodyParser.raw({ type: 'application/json' }),
+    // bodyParser.raw({ type: 'application/json' }), // we're already accepting json
     (request, response) => {
-        const sig = request.headers['stripe-signature']
+        let event = request.body
+        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
-        let event
+        const sig = request.headers['stripe-signature']
 
         // Verify webhook signature and extract the event.
         // See https://stripe.com/docs/webhooks#verify-events for more information.
-        try {
-            event = stripe.webhooks.constructEvent(
-                request.body,
-                sig,
-                endpointSecret
-            )
-        } catch (err) {
-            return response.status(400).send(`Webhook Error: ${err.message}`)
+        if (webhookSecret) {
+            try {
+                event = stripe.webhooks.constructEvent(
+                    request.body,
+                    sig,
+                    webhookSecret
+                )
+            } catch (err) {
+                return response
+                    .status(400)
+                    .send(`Webhook Error: ${err.message}`)
+            }
         }
 
-        if (event.type === 'checkout.session.completed') {
-            const session = event.data.object
-            handleCompletedCheckoutSession(session)
+        // https://stripe.com/docs/webhooks/quickstart
+        switch (event?.type) {
+            case 'checkout.session.completed':
+                const session = event.data.object
+                handleCompletedCheckoutSession(session)
+                break
+            case 'customer.subscription.updated':
+                /**
+                 * If they upgraded, we should send an email
+                 * detailing all the new things they have access to and can now use.
+                 */
+                break
+            case 'customer.subscription.trial_will_end':
+                /**
+                 * If it's 3 days before the end of trial period,
+                 * we should send an email reminding them when their trial period will end.
+                 */
+                break
+            case 'customer.source.expiring':
+                /**
+                 * Let's remind them to update their card or "source" (as it's ending by month end)
+                 * so they don't lose access to our service.
+                 * If they still have pending actions, let's remind them about that too.
+                 */
+                break
+            case 'customer.subscription.created':
+                /**
+                 * Let's create a new customer object in the DB???? If they haven't created an account.
+                 * TODO: Let's onboard them properly.
+                 */
+                break
+            case 'customer.subscription.deleted':
+                /**
+                 * "We're sorry to see you go. Tell us why."
+                 * Does this event also fire if someone upgrades their plans?
+                 */
+                break
+            case 'checkout.session.async_payment_succeeded':
+                /**
+                 * When will we ever need this? ... do we pause operations until we receive this?
+                 */
+                break
+            case 'customer.subscription.resumed':
+            case 'customer.subscription.paused':
+                /**
+                 * Again, When will we ever need this?
+                 */
+                break
+
+            default:
+                break
         }
 
         response.json({ received: true })
